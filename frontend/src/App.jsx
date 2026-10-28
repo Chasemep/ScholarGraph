@@ -1,16 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import {
-  BookOpen,
-  Trash2,
-  CheckSquare,
-  Square,
-  Activity,
-  Network,
-  FileText,
-} from 'lucide-react'
+import Header from './components/Header'
 import ChatWorkspace from './components/ChatWorkspace'
 import PDFViewer from './components/PDFViewer'
 import GraphCanvas from './components/GraphCanvas'
+import UploadModal from './components/UploadModal'
 import {
   fetchDocuments,
   submitQuery,
@@ -28,6 +21,7 @@ export default function App() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [health, setHealth] = useState(null)
+  const [isUploadOpen, setIsUploadOpen] = useState(false)
 
   // Right-pane tab state: 'graph' | 'pdf'
   const [rightTab, setRightTab] = useState('graph')
@@ -95,7 +89,6 @@ export default function App() {
       }
       setMessages((prev) => [...prev, assistantMsg])
 
-      // Synchronize Knowledge Graph relevance scaling and path illumination
       const citedChunkIds = (res.citations || []).map((c) => c.chunk_id)
       const highlightedGraph = await highlightKnowledgeGraph({
         query: queryText,
@@ -105,7 +98,6 @@ export default function App() {
       setGraphData(highlightedGraph)
       setActiveGraphQuery(queryText)
 
-      // Pre-focus the top citation for the PDF viewer
       if (res.citations && res.citations.length > 0) {
         const topCit = res.citations[0]
         setActiveCitation(topCit)
@@ -130,7 +122,6 @@ export default function App() {
     }
   }
 
-  // Clicking a citation token in ChatWorkspace auto-switches right panel to PDF Reader & highlights bbox
   const handleSelectCitation = (citation) => {
     setActiveCitation(citation)
     const targetPaper = papers.find((p) => p.id === citation.paper_id)
@@ -188,114 +179,23 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100">
-      {/* Top Navigation Header */}
-      <header className="h-14 px-5 border-b border-slate-800 bg-slate-900 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center">
-            <BookOpen className="w-4 h-4 text-sky-400" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold tracking-tight text-slate-100 flex items-center gap-2">
-              ScholarGraph
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                Hybrid IR + Knowledge Graph + Spatial Provenance
-              </span>
-            </h1>
-          </div>
-        </div>
+      <Header
+        papers={papers}
+        activePaper={activePaper}
+        selectedPaperIds={selectedPaperIds}
+        onSelectPaper={(paper) => {
+          setActivePaper(paper)
+          setRightTab('pdf')
+        }}
+        onTogglePaperFilter={togglePaperFilter}
+        onDeletePaper={handleDeletePaper}
+        rightTab={rightTab}
+        onChangeRightTab={setRightTab}
+        graphNodeCount={graphData?.total_nodes || 0}
+        onOpenUploadModal={() => setIsUploadOpen(true)}
+        health={health}
+      />
 
-        {/* Right-Pane View Toggle Tabs (Knowledge Graph vs. PDF Reader) */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
-            <button
-              type="button"
-              onClick={() => setRightTab('graph')}
-              className={`px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5 transition cursor-pointer ${
-                rightTab === 'graph'
-                  ? 'bg-sky-500 text-slate-950 shadow-sm'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              <Network className="w-3.5 h-3.5" />
-              Knowledge Graph ({graphData?.total_nodes || 0})
-            </button>
-            <button
-              type="button"
-              onClick={() => setRightTab('pdf')}
-              className={`px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5 transition cursor-pointer ${
-                rightTab === 'pdf'
-                  ? 'bg-sky-500 text-slate-950 shadow-sm'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              PDF Bounding-Box Reader
-            </button>
-          </div>
-
-          {health && (
-            <span className="hidden sm:flex px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5" />
-              API Ready
-            </span>
-          )}
-        </div>
-      </header>
-
-      {/* Corpus Filter Bar */}
-      <div className="px-5 py-2 bg-slate-900/60 border-b border-slate-800 flex items-center gap-2 overflow-x-auto shrink-0">
-        <span className="text-xs font-medium text-slate-400 shrink-0">
-          Indexed Papers ({papers.length}):
-        </span>
-        {papers.map((paper) => {
-          const isChecked = selectedPaperIds.includes(paper.id)
-          const isCurrent = activePaper?.id === paper.id
-          return (
-            <div
-              key={paper.id}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs shrink-0 transition ${
-                isCurrent
-                  ? 'bg-sky-500/15 border-sky-400/50 text-sky-200'
-                  : 'bg-slate-800/70 border-slate-700/70 text-slate-300'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => togglePaperFilter(paper.id)}
-                className="text-slate-400 hover:text-sky-300 cursor-pointer"
-                title="Toggle inclusion in Q&A filter"
-              >
-                {isChecked ? (
-                  <CheckSquare className="w-3.5 h-3.5 text-sky-400" />
-                ) : (
-                  <Square className="w-3.5 h-3.5" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActivePaper(paper)
-                  setRightTab('pdf')
-                }}
-                className="truncate max-w-[180px] font-medium hover:text-white cursor-pointer"
-                title={`${paper.title} — Click to open in PDF Reader`}
-              >
-                {paper.title}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeletePaper(paper.id)}
-                className="text-slate-500 hover:text-rose-400 ml-1 cursor-pointer"
-                title="Remove paper from workspace"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Main Split-Screen Workspace */}
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0">
         <div className="lg:col-span-5 h-full min-h-0 overflow-hidden">
           <ChatWorkspace
@@ -326,6 +226,12 @@ export default function App() {
           )}
         </div>
       </main>
+
+      <UploadModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUploadComplete={loadWorkspaceData}
+      />
     </div>
   )
 }

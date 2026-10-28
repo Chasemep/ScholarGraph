@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.api.document_routes import router as document_router
 from backend.api.graph_routes import router as graph_router
 from backend.api.query_routes import router as query_router
 from backend.config import settings
@@ -21,6 +22,7 @@ app = FastAPI(
 
 app.include_router(query_router)
 app.include_router(graph_router)
+app.include_router(document_router)
 
 app.add_middleware(
     CORSMiddleware,

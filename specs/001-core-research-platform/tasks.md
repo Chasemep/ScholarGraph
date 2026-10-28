@@ -107,15 +107,15 @@ description: "Task list for Core Grounded Literature Research Platform implement
 **Independent Test**: Upload a fresh PDF paper via the UI dropzone, observe staged progress status badges (`Uploading` $\rightarrow$ `Parsing` $\rightarrow$ `Embedding` $\rightarrow$ `Ready`), and verify the new paper immediately appears in the document list, search index, and knowledge graph.
 
 ### Tests for User Story 3
-- [ ] T035 [P] [US3] Create automated parser unit tests validating two-column extraction, section boundary categorization, Greek symbol preservation, and bounding-box accuracy in `tests/test_parsers.py`
+- [x] T035 [P] [US3] Create automated parser unit tests validating two-column extraction, section boundary categorization, Greek symbol preservation, and bounding-box accuracy in `tests/test_parsers.py`
 
 ### Implementation for User Story 3
-- [ ] T036 [P] [US3] Create document ingestion task status models (`IngestionStatus`) in `backend/models/paper.py`
-- [ ] T037 [US3] Implement hierarchical PDF parser and section-aware chunker using `pdfplumber` and `pypdf`, capturing normalized paragraph coordinates `[page, x, y, width, height]` in `backend/parsers/pdf_parser.py`
-- [ ] T038 [P] [US3] Implement text cleaner and encoding normalization preserving mathematical notation and subscripts in `backend/parsers/text_cleaner.py`
-- [ ] T039 [US3] Implement asynchronous background ingestion pipeline (parsing, embedding, BM25 indexing, graph node insertion) with staged status tracking in `backend/api/document_routes.py`
-- [ ] T040 [US3] Build multi-PDF drag-and-drop upload modal with staged progress indicators (`Uploading`, `Parsing`, `Embedding`, `Ready`) in `frontend/src/components/UploadModal.jsx`
-- [ ] T041 [US3] Build document selector dropdown and collection management header in `frontend/src/components/Header.jsx`
+- [x] T036 [P] [US3] Create document ingestion task status models (`IngestionStatus`) in `backend/models/paper.py`
+- [x] T037 [US3] Implement hierarchical PDF parser and section-aware chunker using `pdfplumber` and `pypdf`, capturing normalized paragraph coordinates `[page, x, y, width, height]` in `backend/parsers/pdf_parser.py`
+- [x] T038 [P] [US3] Implement text cleaner and encoding normalization preserving mathematical notation and subscripts in `backend/parsers/text_cleaner.py`
+- [x] T039 [US3] Implement asynchronous background ingestion pipeline (parsing, embedding, BM25 indexing, graph node insertion) with staged status tracking in `backend/api/document_routes.py`
+- [x] T040 [US3] Build multi-PDF drag-and-drop upload modal with staged progress indicators (`Uploading`, `Parsing`, `Embedding`, `Ready`) in `frontend/src/components/UploadModal.jsx`
+- [x] T041 [US3] Build document selector dropdown and collection management header in `frontend/src/components/Header.jsx`
 
 **Checkpoint**: Dynamic multi-PDF upload and asynchronous ingestion complete.
 

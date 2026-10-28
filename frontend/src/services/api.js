@@ -80,3 +80,19 @@ export async function highlightKnowledgeGraph({
   })
   return data
 }
+
+export async function uploadPdfFiles(files) {
+  const formData = new FormData()
+  Array.from(files).forEach((file) => {
+    formData.append('files', file)
+  })
+  const { data } = await apiClient.post('/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+export async function fetchUploadTaskStatus(taskId) {
+  const { data } = await apiClient.get(`/upload/${encodeURIComponent(taskId)}`)
+  return data
+}
