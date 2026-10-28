@@ -1,0 +1,113 @@
+name: ScholarGraph Automated CI & Coverage Gate
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - feature-branch
+      - "001-*"
+  pull_request:
+    branches:
+      - main
+      - master
+      - feature-branch
+
+permissions:
+  contents: read
+
+jobs:
+  pytest-and-coverage:
+    name: Backend Pytest Suite & >=80% Coverage Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "backend/requirements.txt"
+
+      - name: Cache HuggingFace & spaCy Models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/torch
+          key: ${{ runner.os }}-hf-models-v1-${{ hashFiles('backend/scripts/download_models.py') }}
+          restore-keys: |
+            ${{ runner.os }}-hf-models-v1-
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Pre-cache NLP & IR Models (spaCy + MiniLM Bi-Encoder & Cross-Encoder)
+        run: |
+          python -m backend.scripts.download_models
+
+      - name: Execute Automated Pytest Suite with Coverage Gate (>=80%)
+        env:
+          GEMINI_API_KEY: ""
+        run: |
+          pytest --cov=backend --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=80 --junitxml=pytest-report.xml -v
+
+      - name: Generate CI Test & Coverage Summary Report
+        if: always()
+        run: |
+          python - << 'EOF'
+          import os
+          import xml.etree.ElementTree as ET
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path and os.path.exists("pytest-report.xml"):
+              tree = ET.parse("pytest-report.xml")
+              root = tree.getroot()
+              suite = root.find("testsuite") if root.tag != "testsuite" else root
+              tests = int(suite.attrib.get("tests", 0))
+              failures = int(suite.attrib.get("failures", 0))
+              errors = int(suite.attrib.get("errors", 0))
+              skipped = int(suite.attrib.get("skipped", 0))
+              passed = tests - failures - errors - skipped
+              time_s = float(suite.attrib.get("time", 0.0))
+
+              cov_pct = "N/A"
+              if os.path.exists("coverage.xml"):
+                  cov_root = ET.parse("coverage.xml").getroot()
+                  line_rate = float(cov_root.attrib.get("line-rate", 0.0)) * 100.0
+                  cov_pct = f"{line_rate:.1f}%"
+
+              status_badge = "✅ PASS" if (failures == 0 and errors == 0) else "❌ FAIL"
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write("## ScholarGraph Automated Test & Coverage Report\n\n")
+                  f.write("| Status | Total Tests | Passed | Failed | Errors | Coverage | Duration |\n")
+                  f.write("| :--- | :---: | :---: | :---: | :---: | :---: | :---: |\n")
+                  f.write(f"| **{status_badge}** | {tests} | {passed} | {failures} | {errors} | **{cov_pct}** | {time_s:.2f}s |\n")
+          EOF
+
+  frontend-build-check:
+    name: Frontend React + Vite Build Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "frontend/package.json"
+
+      - name: Install Frontend Dependencies & Verify Production Build
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+

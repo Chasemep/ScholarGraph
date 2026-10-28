@@ -91,10 +91,10 @@ description: "Task list for Core Grounded Literature Research Platform implement
 **Independent Test**: Push a commit or pull request to GitHub, verify that the GitHub Actions CI workflow triggers automatically, executes all pytest suites in clean virtualization, and generates coverage reports.
 
 ### Implementation for User Story 5
-- [ ] T031 [P] [US5] Implement pytest test fixtures, mock Gemini API responses, and isolated in-memory test databases in `tests/conftest.py`
-- [ ] T032 [P] [US5] Implement comprehensive FastAPI endpoint integration tests (`/api/health`, `/api/query`, `/api/graph`, `/api/documents`) in `tests/test_api.py`
-- [ ] T033 [US5] Create GitHub Actions CI workflow configuration (`.github/workflows/ci.yml`) executing on push/PR with Python 3.10, dependency caching, model caching, pytest execution, and $\ge 80\%$ coverage gate
-- [ ] T034 [US5] Implement CI test report summary generation and badge output in `.github/workflows/ci.yml`
+- [x] T031 [P] [US5] Implement pytest test fixtures, mock Gemini API responses, and isolated in-memory test databases in `tests/conftest.py`
+- [x] T032 [P] [US5] Implement comprehensive FastAPI endpoint integration tests (`/api/health`, `/api/query`, `/api/graph`, `/api/documents`) in `tests/test_api.py`
+- [x] T033 [US5] Create GitHub Actions CI workflow configuration (`.github/workflows/ci.yml`) executing on push/PR with Python 3.10, dependency caching, model caching, pytest execution, and $\ge 80\%$ coverage gate
+- [x] T034 [US5] Implement CI test report summary generation and badge output in `.github/workflows/ci.yml`
 
 **Checkpoint**: Continuous integration gate protects the repository against regressions across all subsequent phases.
 
