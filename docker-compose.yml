@@ -1,0 +1,40 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: scholargraph-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - PAPERS_DIR=/app/data/papers
+      - CHROMA_PERSIST_DIR=/app/data/chromadb
+      - SQLITE_DB_PATH=/app/data/sqlite/scholargraph.db
+    volumes:
+      - ./data/papers:/app/data/papers
+      - ./data/chromadb:/app/data/chromadb
+      - ./data/sqlite:/app/data/sqlite
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: scholargraph-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+

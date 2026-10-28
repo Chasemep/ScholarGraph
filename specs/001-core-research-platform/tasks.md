@@ -128,11 +128,11 @@ description: "Task list for Core Grounded Literature Research Platform implement
 **Independent Test**: Execute `docker compose up --build` on a clean system, confirm both services start healthy, and verify immediate availability of seed papers, Q&A synthesis, and knowledge graph.
 
 ### Implementation for User Story 4
-- [ ] T042 [P] [US4] Create multi-stage backend `Dockerfile` based on `python:3.10-slim` with model caching and healthcheck probe in `backend/Dockerfile`
-- [ ] T043 [P] [US4] Create frontend `Dockerfile` using multi-stage build (Node 18 build $\rightarrow$ Nginx lightweight runtime with `/api` reverse proxy) in `frontend/Dockerfile`
-- [ ] T044 [US4] Create `docker-compose.yml` orchestrating `backend` and `frontend` services with persistent volume bindings (`./data/chromadb`, `./data/sqlite`, `./data/papers`) and healthcheck dependencies
-- [ ] T045 [US4] Create seed database initialization script to automatically index bundled seed papers on container first boot in `backend/scripts/seed_database.py`
-- [ ] T046 [US4] Perform end-to-end container startup verification following `quickstart.md` ensuring clean-boot availability in $< 5\text{ minutes}$
+- [x] T042 [P] [US4] Create multi-stage backend `Dockerfile` based on `python:3.10-slim` with model caching and healthcheck probe in `backend/Dockerfile`
+- [x] T043 [P] [US4] Create frontend `Dockerfile` using multi-stage build (Node 18 build $\rightarrow$ Nginx lightweight runtime with `/api` reverse proxy) in `frontend/Dockerfile`
+- [x] T044 [US4] Create `docker-compose.yml` orchestrating `backend` and `frontend` services with persistent volume bindings (`./data/chromadb`, `./data/sqlite`, `./data/papers`) and healthcheck dependencies
+- [x] T045 [US4] Create seed database initialization script to automatically index bundled seed papers on container first boot in `backend/scripts/seed_database.py`
+- [x] T046 [US4] Perform end-to-end container startup verification following `quickstart.md` ensuring clean-boot availability in $< 5\text{ minutes}$
 
 **Checkpoint**: Application is fully containerized and reproducible out of the box.
 

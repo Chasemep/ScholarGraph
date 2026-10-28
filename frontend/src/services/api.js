@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 45000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -12,6 +12,14 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
+    // When sending FormData (file upload), let the browser set multipart/form-data + boundary
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (config.headers) {
+        delete config.headers['Content-Type']
+      }
+      return config
+    }
+
     const storedApiKey = localStorage.getItem('scholargraph_gemini_key')
     if (storedApiKey && config.data && typeof config.data === 'object' && !config.data.api_key) {
       config.data = { ...config.data, api_key: storedApiKey }
@@ -86,9 +94,7 @@ export async function uploadPdfFiles(files) {
   Array.from(files).forEach((file) => {
     formData.append('files', file)
   })
-  const { data } = await apiClient.post('/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  const { data } = await apiClient.post('/upload', formData)
   return data
 }
 
