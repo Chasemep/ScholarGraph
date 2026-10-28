@@ -69,16 +69,16 @@ description: "Task list for Core Grounded Literature Research Platform implement
 **Independent Test**: Load the graph view for ingested papers, verify color- and shape-coded entity nodes, submit a search prompt, and confirm that relevant nodes scale up while unrelated nodes dim to 20% opacity.
 
 ### Tests for User Story 2
-- [ ] T023 [P] [US2] Create unit tests for spaCy scientific entity extraction patterns and NetworkX graph serialization in `tests/test_graph.py`
+- [x] T023 [P] [US2] Create unit tests for spaCy scientific entity extraction patterns and NetworkX graph serialization in `tests/test_graph.py`
 
 ### Implementation for User Story 2
-- [ ] T024 [P] [US2] Create Cytoscape-compliant graph serialization schemas (`CytoscapeNode`, `CytoscapeEdge`, `GraphResponse`) in `backend/models/graph.py`
-- [ ] T025 [P] [US2] Implement scientific entity extraction pipeline (`Paper`, `Author`, `Method`, `Dataset`, `Metric`) using `spaCy` (`en_core_web_sm`) and pattern matchers in `backend/graph/entity_miner.py`
-- [ ] T026 [US2] Implement `NetworkX` directed graph topology builder with typed relationships (`AUTHORED`, `PROPOSES`, `EVALUATES_ON`, `CITES`, `ACHIEVES`) and Cytoscape serialization in `backend/graph/graph_builder.py`
-- [ ] T027 [US2] Implement graph API endpoints `GET /api/graph` and `POST /api/graph/highlight` in `backend/api/graph_routes.py`
-- [ ] T028 [US2] Build interactive 2D Cytoscape canvas component with `cola` force-directed physics layout, multi-shape entity styling, and zoom/pan controls in `frontend/src/components/GraphCanvas.jsx`
-- [ ] T029 [US2] Implement prompt-activated relevance dynamics in `frontend/src/components/GraphCanvas.jsx`: scale matching nodes by score, thicken active relational paths to 4px with luminous glow, and dim peripheral nodes to 20% opacity
-- [ ] T030 [US2] Integrate tabbed right-panel toggle between Graph Canvas and PDF Reader in `frontend/src/App.jsx`, auto-switching to PDF Reader upon citation click
+- [x] T024 [P] [US2] Create Cytoscape-compliant graph serialization schemas (`CytoscapeNode`, `CytoscapeEdge`, `GraphResponse`) in `backend/models/graph.py`
+- [x] T025 [P] [US2] Implement scientific entity extraction pipeline (`Paper`, `Author`, `Method`, `Dataset`, `Metric`) using `spaCy` (`en_core_web_sm`) and pattern matchers in `backend/graph/entity_miner.py`
+- [x] T026 [US2] Implement `NetworkX` directed graph topology builder with typed relationships (`AUTHORED`, `PROPOSES`, `EVALUATES_ON`, `CITES`, `ACHIEVES`) and Cytoscape serialization in `backend/graph/graph_builder.py`
+- [x] T027 [US2] Implement graph API endpoints `GET /api/graph` and `POST /api/graph/highlight` in `backend/api/graph_routes.py`
+- [x] T028 [US2] Build interactive 2D Cytoscape canvas component with `cola` force-directed physics layout, multi-shape entity styling, and zoom/pan controls in `frontend/src/components/GraphCanvas.jsx`
+- [x] T029 [US2] Implement prompt-activated relevance dynamics in `frontend/src/components/GraphCanvas.jsx`: scale matching nodes by score, thicken active relational paths to 4px with luminous glow, and dim peripheral nodes to 20% opacity
+- [x] T030 [US2] Integrate tabbed right-panel toggle between Graph Canvas and PDF Reader in `frontend/src/App.jsx`, auto-switching to PDF Reader upon citation click
 
 **Checkpoint**: User Stories 1 and 2 work seamlessly together in the split-screen research canvas.
 

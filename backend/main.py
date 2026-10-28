@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.api.graph_routes import router as graph_router
 from backend.api.query_routes import router as query_router
 from backend.config import settings
 from backend.rag.vector_store import vector_store
@@ -19,6 +20,7 @@ app = FastAPI(
 )
 
 app.include_router(query_router)
+app.include_router(graph_router)
 
 app.add_middleware(
     CORSMiddleware,

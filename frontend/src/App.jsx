@@ -1,12 +1,23 @@
 import React, { useEffect, useState } from 'react'
-import { BookOpen, Trash2, CheckSquare, Square, Activity } from 'lucide-react'
+import {
+  BookOpen,
+  Trash2,
+  CheckSquare,
+  Square,
+  Activity,
+  Network,
+  FileText,
+} from 'lucide-react'
 import ChatWorkspace from './components/ChatWorkspace'
 import PDFViewer from './components/PDFViewer'
+import GraphCanvas from './components/GraphCanvas'
 import {
   fetchDocuments,
   submitQuery,
   deleteDocument,
   checkSystemHealth,
+  fetchKnowledgeGraph,
+  highlightKnowledgeGraph,
 } from './services/api'
 
 export default function App() {
@@ -18,20 +29,33 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [health, setHealth] = useState(null)
 
-  const loadPapers = async () => {
+  // Right-pane tab state: 'graph' | 'pdf'
+  const [rightTab, setRightTab] = useState('graph')
+  const [graphData, setGraphData] = useState({
+    elements: { nodes: [], edges: [] },
+    total_nodes: 0,
+    total_edges: 0,
+  })
+  const [activeGraphQuery, setActiveGraphQuery] = useState('')
+
+  const loadWorkspaceData = async () => {
     try {
-      const docs = await fetchDocuments()
+      const [docs, graphRes] = await Promise.all([
+        fetchDocuments(),
+        fetchKnowledgeGraph({ minDegree: 1 }),
+      ])
       setPapers(docs)
+      setGraphData(graphRes)
       if (docs.length > 0 && !activePaper) {
         setActivePaper(docs[0])
       }
     } catch (err) {
-      console.error('Failed to load papers:', err)
+      console.error('Failed to load workspace data:', err)
     }
   }
 
   useEffect(() => {
-    loadPapers()
+    loadWorkspaceData()
     checkSystemHealth()
       .then(setHealth)
       .catch(() => {})
@@ -68,9 +92,24 @@ export default function App() {
       }
       setMessages((prev) => [...prev, assistantMsg])
 
-      // Automatically focus the top-ranked citation in the PDF viewer
+      // Synchronize Knowledge Graph relevance scaling and path illumination
+      const citedChunkIds = (res.citations || []).map((c) => c.chunk_id)
+      const highlightedGraph = await highlightKnowledgeGraph({
+        query: queryText,
+        activeChunkIds: citedChunkIds,
+        paperIds: filterIds,
+      })
+      setGraphData(highlightedGraph)
+      setActiveGraphQuery(queryText)
+
+      // Pre-focus the top citation for the PDF viewer
       if (res.citations && res.citations.length > 0) {
-        handleSelectCitation(res.citations[0])
+        const topCit = res.citations[0]
+        setActiveCitation(topCit)
+        const targetPaper = papers.find((p) => p.id === topCit.paper_id)
+        if (targetPaper) {
+          setActivePaper(targetPaper)
+        }
       }
     } catch (err) {
       setMessages((prev) => [
@@ -88,11 +127,31 @@ export default function App() {
     }
   }
 
+  // Clicking a citation token in ChatWorkspace auto-switches right panel to PDF Reader & highlights bbox
   const handleSelectCitation = (citation) => {
     setActiveCitation(citation)
     const targetPaper = papers.find((p) => p.id === citation.paper_id)
     if (targetPaper) {
       setActivePaper(targetPaper)
+    }
+    setRightTab('pdf')
+  }
+
+  const handleResetGraphHighlight = async () => {
+    try {
+      const freshGraph = await fetchKnowledgeGraph({ minDegree: 1 })
+      setGraphData(freshGraph)
+      setActiveGraphQuery('')
+    } catch (err) {
+      console.error('Failed to reset graph:', err)
+    }
+  }
+
+  const handleOpenPaperFromGraph = (paperId) => {
+    const found = papers.find((p) => p.id === paperId)
+    if (found) {
+      setActivePaper(found)
+      setRightTab('pdf')
     }
   }
 
@@ -111,6 +170,8 @@ export default function App() {
       if (activePaper?.id === paperId) {
         setActivePaper(updated[0] || null)
       }
+      const freshGraph = await fetchKnowledgeGraph({ minDegree: 1 })
+      setGraphData(freshGraph)
     } catch (err) {
       console.error('Delete failed:', err)
     }
@@ -128,18 +189,43 @@ export default function App() {
             <h1 className="text-base font-bold tracking-tight text-slate-100 flex items-center gap-2">
               ScholarGraph
               <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                Hybrid IR + Spatial Provenance
+                Hybrid IR + Knowledge Graph + Spatial Provenance
               </span>
             </h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-slate-400">
-            Indexed Corpus: <strong className="text-slate-200">{papers.length} papers</strong>
-          </span>
+        {/* Right-Pane View Toggle Tabs (Knowledge Graph vs. PDF Reader) */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
+            <button
+              type="button"
+              onClick={() => setRightTab('graph')}
+              className={`px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                rightTab === 'graph'
+                  ? 'bg-sky-500 text-slate-950 shadow-sm'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <Network className="w-3.5 h-3.5" />
+              Knowledge Graph ({graphData?.total_nodes || 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => setRightTab('pdf')}
+              className={`px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                rightTab === 'pdf'
+                  ? 'bg-sky-500 text-slate-950 shadow-sm'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              PDF Bounding-Box Reader
+            </button>
+          </div>
+
           {health && (
-            <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 flex items-center gap-1.5">
+            <span className="hidden sm:flex px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs items-center gap-1.5">
               <Activity className="w-3.5 h-3.5" />
               API Ready
             </span>
@@ -149,7 +235,9 @@ export default function App() {
 
       {/* Corpus Filter Bar */}
       <div className="px-5 py-2 bg-slate-900/60 border-b border-slate-800 flex items-center gap-2 overflow-x-auto shrink-0">
-        <span className="text-xs font-medium text-slate-400 shrink-0">Corpus Filter:</span>
+        <span className="text-xs font-medium text-slate-400 shrink-0">
+          Indexed Papers ({papers.length}):
+        </span>
         {papers.map((paper) => {
           const isChecked = selectedPaperIds.includes(paper.id)
           const isCurrent = activePaper?.id === paper.id
@@ -176,9 +264,12 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setActivePaper(paper)}
+                onClick={() => {
+                  setActivePaper(paper)
+                  setRightTab('pdf')
+                }}
                 className="truncate max-w-[180px] font-medium hover:text-white cursor-pointer"
-                title={paper.title}
+                title={`${paper.title} — Click to open in PDF Reader`}
               >
                 {paper.title}
               </button>
@@ -195,7 +286,7 @@ export default function App() {
         })}
       </div>
 
-      {/* Main Split-Screen Workspace: Left = Chat, Right = Synchronized PDF Reader */}
+      {/* Main Split-Screen Workspace */}
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0">
         <div className="lg:col-span-5 h-full min-h-0 overflow-hidden">
           <ChatWorkspace
@@ -208,12 +299,21 @@ export default function App() {
           />
         </div>
         <div className="lg:col-span-7 h-full min-h-0 overflow-hidden">
-          <PDFViewer
-            activePaper={activePaper}
-            papers={papers}
-            onSelectPaper={setActivePaper}
-            activeCitation={activeCitation}
-          />
+          {rightTab === 'graph' ? (
+            <GraphCanvas
+              graphData={graphData}
+              activeQuery={activeGraphQuery}
+              onResetHighlight={handleResetGraphHighlight}
+              onOpenPaperInReader={handleOpenPaperFromGraph}
+            />
+          ) : (
+            <PDFViewer
+              activePaper={activePaper}
+              papers={papers}
+              onSelectPaper={setActivePaper}
+              activeCitation={activeCitation}
+            />
+          )}
         </div>
       </main>
     </div>

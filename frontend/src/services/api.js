@@ -61,3 +61,22 @@ export function getPaperPdfUrl(paperId) {
   return `${API_BASE_URL}/documents/${encodeURIComponent(paperId)}/pdf`
 }
 
+export async function fetchKnowledgeGraph({ entityType = null, minDegree = 1 } = {}) {
+  const params = { min_degree: minDegree }
+  if (entityType) params.entity_type = entityType
+  const { data } = await apiClient.get('/graph', { params })
+  return data
+}
+
+export async function highlightKnowledgeGraph({
+  query = '',
+  activeChunkIds = [],
+  paperIds = null,
+} = {}) {
+  const { data } = await apiClient.post('/graph/highlight', {
+    query,
+    active_chunk_ids: activeChunkIds,
+    paper_ids: paperIds,
+  })
+  return data
+}
