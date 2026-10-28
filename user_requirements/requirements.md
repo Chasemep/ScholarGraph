@@ -158,6 +158,7 @@ In strict compliance with **Constitution Principle II**, ScholarGraph enforces a
 - **NFR-4.1 (Pydantic v2 Contracts):** All API request and response models MUST be strictly defined using Pydantic v2 schemas (`backend/models/`).
 - **NFR-4.2 (OpenAPI Specification):** FastAPI MUST automatically generate interactive Swagger documentation accessible at `/docs`.
 - **NFR-4.3 (Decoupled Persistence):** Storage backends (ChromaDB, SQLite, Local File Store) must be isolated behind repository interfaces to allow swapping or upgrading without altering business logic.
+- **NFR-4.4 (Continuous Automated Testing & GitHub Actions CI):** Every major feature and subsystem implementation across all development phases MUST be accompanied by comprehensive `pytest` automated unit and integration tests covering both standard execution and edge cases. Tests MUST persist permanently across the codebase to prevent regressions. A GitHub Actions CI workflow (`.github/workflows/ci.yml`) MUST execute all test suites automatically upon every push and pull request.
 
 ### NFR-5: Academic Reproducibility & Out-of-the-Box Execution
 - **NFR-5.1 (No Proprietary API Keys Required):** The core retrieval, re-ranking, NER, and graph visualization pipelines MUST operate entirely using local, open-source models (`all-MiniLM-L6-v2`, `ms-marco-MiniLM-L-6-v2`, `en_core_web_sm`).
