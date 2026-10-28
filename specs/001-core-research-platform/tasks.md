@@ -146,7 +146,7 @@ description: "Task list for Core Grounded Literature Research Platform implement
 - [ ] T048 [P] Implement benchmark route `GET /api/benchmarks/run` in `backend/api/benchmark_routes.py` and automated verification test in `tests/test_benchmarks.py`
 - [ ] T049 [P] Build Settings / API Key modal allowing users to enter a custom Gemini API key or switch to local fallback in `frontend/src/components/Header.jsx`
 - [ ] T050 Polish UI error handling, toast notifications, and loading skeletons in `frontend/src/App.jsx`
-- [ ] T051 Write comprehensive root `README.md` documenting problem description, 4-tier architecture, prerequisites, PowerShell and Docker setup, seed paper walkthrough, and UI screenshots per Course Guidelines §3.2
+- [x] T051 Write comprehensive root `README.md` documenting problem description, 4-tier architecture, prerequisites, PowerShell and Docker setup, seed paper walkthrough, and UI screenshots per Course Guidelines §3.2
 
 ---
 

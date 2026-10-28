@@ -36,6 +36,8 @@ KNOWN_METHODS: Dict[str, List[str]] = {
     "Rotary Position Embedding": [r"\brotary position embedding(?:s)?\b", r"\brope\b", r"\broformer\b"],
     "FlashAttention": [r"\bflashattention\b"],
     "IO-Aware Tiling": [r"\bio-aware\b", r"\btiling\b", r"\bonline softmax\b"],
+    "Cucker-Smale Flocking Model": [r"\bflocking\b", r"\bcucker\b", r"\bautonomous agents\b"],
+    "Graph Laplacian": [r"\blaplacian\b", r"\badjacency matrix\b"],
 }
 
 KNOWN_DATASETS: Dict[str, List[str]] = {
@@ -56,6 +58,7 @@ KNOWN_METRICS: Dict[str, List[str]] = {
     "GPU Memory / VRAM": [r"\bgpu memory\b", r"\bvram\b", r"\bhbm\b"],
     "Training Speedup": [r"\bwall-clock speedup\b", r"\btraining speed\b", r"\b3x\b", r"\b15%\s+faster\b"],
     "Parameter Efficiency": [r"\btrainable parameters\b", r"\b10,000 times\b"],
+    "Consensus Convergence": [r"\bconvergence to consensus\b", r"\bconsensus reaching\b", r"\bunconditional convergence\b"],
 }
 
 # Concise scientific definitions for extracted concepts
@@ -113,6 +116,14 @@ ENTITY_DESCRIPTIONS: Dict[str, str] = {
         "Partitions Q, K, V matrices into SRAM-resident tiles and fuses softmax normalization to reduce HBM "
         "memory reads/writes from O(N^2) to O(N)."
     ),
+    "Cucker-Smale Flocking Model": (
+        "Continuous- and discrete-time dynamical system modeling the emergence of velocity consensus (flocking) "
+        "in a population of autonomous agents where pairwise communication weights decay with spatial distance."
+    ),
+    "Graph Laplacian": (
+        "Symmetric positive semi-definite matrix L = D - A capturing pairwise interaction weights between agents, "
+        "whose Fiedler eigenvalue governs convergence rate to consensus."
+    ),
     # Datasets
     "WMT 2014": (
         "Workshop on Machine Translation 2014 benchmark (English-to-German and English-to-French) used to "
@@ -158,6 +169,10 @@ ENTITY_DESCRIPTIONS: Dict[str, str] = {
     ),
     "Parameter Efficiency": (
         "Ratio of downstream task performance to the number of trainable parameters updated during adaptation."
+    ),
+    "Consensus Convergence": (
+        "Asymptotic alignment of agent states or velocities (v_i - v_j -> 0 as t -> infinity) while relative "
+        "positions remain bounded."
     ),
 }
 

@@ -78,7 +78,14 @@ class BM25IndexManager:
             chunk = self.chunks[idx]
             if allowed_papers is not None and chunk.paper_id not in allowed_papers:
                 continue
-            scored_indices.append((idx, float(score)))
+            adj_score = float(score)
+            # Prioritize foundational overview & method definition sections on early pages
+            sec_lower = (chunk.section or "").lower()
+            if chunk.page_number <= 3 or sec_lower in {"abstract", "introduction", "methods"}:
+                adj_score *= 1.18
+            elif sec_lower == "references":
+                adj_score *= 0.65
+            scored_indices.append((idx, adj_score))
 
         scored_indices.sort(key=lambda item: item[1], reverse=True)
         top_items = scored_indices[:top_k]

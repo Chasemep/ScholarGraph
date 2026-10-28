@@ -72,7 +72,11 @@ class VectorStoreManager:
 
         ids = [c.id for c in chunks]
         documents = [c.text for c in chunks]
-        embeddings = self.embed_texts(documents)
+        embed_inputs = [
+            f"{c.paper_title} ({c.section}): {c.text}" if c.paper_title else f"{c.section}: {c.text}"
+            for c in chunks
+        ]
+        embeddings = self.embed_texts(embed_inputs)
         metadatas = [
             {
                 "paper_id": c.paper_id,

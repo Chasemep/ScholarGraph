@@ -27,8 +27,59 @@ def _detect_and_order_columns(words: List[Dict[str, Any]], page_width: float) ->
     if not words:
         return []
 
+    full_page_lines = _group_words_into_lines(words)
+    if len(words) < 40:
+        return full_page_lines
+
     midpoint = page_width / 2.0
-    gutter_tol = page_width * 0.03
+    gutter_tol = page_width * 0.025
+
+    # Check if horizontal rows flow continuously across the page center (single-column layout).
+    # In a single-column page, body lines have words on both sides of `midpoint` separated by
+    # normal word spacing (< 9.5pt) or a word straddling the center.
+    # In a two-column page, the left and right columns are separated by a vertical gutter (>= 10pt).
+    continuous_center_rows = 0
+    gutter_split_rows = 0
+
+    for row in full_page_lines:
+        if len(row) < 4:
+            continue
+        row_top = min(float(w["top"]) for w in row)
+        if row_top < page_width * 0.22:
+            continue
+        row_min_x = min(float(w["x0"]) for w in row)
+        row_max_x = max(float(w["x1"]) for w in row)
+        if not (row_min_x < midpoint - page_width * 0.08 and row_max_x > midpoint + page_width * 0.08):
+            continue
+
+        # Check words around the center region [midpoint - 25pt, midpoint + 25pt]
+        straddles_center = any(
+            float(w["x0"]) < midpoint - 1.5 and float(w["x1"]) > midpoint + 1.5
+            for w in row
+        )
+        if straddles_center:
+            continuous_center_rows += 1
+            continue
+
+        # Find the gap between consecutive words that crosses midpoint
+        center_gap = None
+        for idx in range(len(row) - 1):
+            w_left = row[idx]
+            w_right = row[idx + 1]
+            if float(w_left["x1"]) <= midpoint + gutter_tol and float(w_right["x0"]) >= midpoint - gutter_tol:
+                center_gap = float(w_right["x0"]) - float(w_left["x1"])
+                break
+
+        if center_gap is not None:
+            if center_gap < max(9.5, page_width * 0.017):
+                continuous_center_rows += 1
+            else:
+                gutter_split_rows += 1
+
+    # If multiple body lines flow continuously across the midpoint with normal word spacing,
+    # the page is single-column.
+    if continuous_center_rows >= 3 and continuous_center_rows >= gutter_split_rows:
+        return full_page_lines
 
     header_words: List[Dict[str, Any]] = []
     left_words: List[Dict[str, Any]] = []
@@ -40,7 +91,6 @@ def _detect_and_order_columns(words: List[Dict[str, Any]], page_width: float) ->
         x1 = float(w["x1"])
         top = float(w["top"])
 
-        # Top 18% of page 1 or full-width spanning lines
         if x1 <= midpoint + gutter_tol:
             left_words.append(w)
         elif x0 >= midpoint - gutter_tol:
@@ -52,16 +102,15 @@ def _detect_and_order_columns(words: List[Dict[str, Any]], page_width: float) ->
                 spanning_words.append(w)
 
     total = len(words)
-    # Consider page two-column if both left and right halves each contain >= 20% of the page's words
     is_two_column = (
-        total >= 30
+        total >= 40
         and len(left_words) >= total * 0.20
         and len(right_words) >= total * 0.20
-        and len(spanning_words) <= total * 0.25
+        and len(spanning_words) <= total * 0.12
+        and gutter_split_rows >= 2
     )
 
     if is_two_column:
-        # Place spanning words into whichever column their center is closer to, or header if near top
         for sw in spanning_words:
             center_x = (float(sw["x0"]) + float(sw["x1"])) / 2.0
             if center_x <= midpoint:
@@ -75,7 +124,7 @@ def _detect_and_order_columns(words: List[Dict[str, Any]], page_width: float) ->
         lines.extend(_group_words_into_lines(right_words))
         return lines
 
-    return _group_words_into_lines(words)
+    return full_page_lines
 
 
 def _group_words_into_lines(words: List[Dict[str, Any]], y_tol: float = 4.5) -> List[List[Dict[str, Any]]]:
@@ -130,19 +179,45 @@ def extract_bibliographic_metadata(
     ]
     line_strings = [s for s in line_strings if s]
 
-    # Title heuristic: prefer valid pypdf title, else first non-trivial line on page 1
+    # Title heuristic: prefer valid pypdf title, else first non-boilerplate line on page 1
     title = ""
-    if pypdf_title and len(pypdf_title) > 5 and not pypdf_title.lower().endswith(".pdf"):
+    title_line_idx = -1
+    is_valid_pypdf_title = (
+        bool(pypdf_title)
+        and len(pypdf_title) > 5
+        and " " in pypdf_title
+        and not pypdf_title.lower().endswith((".pdf", ".dvi", ".tex", ".ps", ".doc", ".docx"))
+        and not pypdf_title.lower().startswith(("arxiv:", "doi:", "untitled", "microsoft word"))
+    )
+    if is_valid_pypdf_title:
         title = pypdf_title
     else:
-        for line_str in line_strings[:6]:
-            cleaned_line = line_str.strip("[] ")
+        boilerplate_prefixes = (
+            "arxiv:",
+            "published as",
+            "preprint",
+            "doi:",
+            "received:",
+            "accepted:",
+            "published online:",
+            "communicated by:",
+            "japan. j. math",
+            "the mathematical society",
+            "copyright",
+            "vol.",
+            "issn",
+        )
+        for idx, line_str in enumerate(line_strings[:10]):
+            cleaned_line = line_str.strip("[]•\ufffd ")
+            low_line = cleaned_line.lower()
             if (
                 len(cleaned_line) >= 8
-                and not cleaned_line.lower().startswith(("arxiv:", "published as", "preprint"))
+                and not low_line.startswith(boilerplate_prefixes)
+                and not re.match(r"^[A-Za-z.\s]+\d+,\s*\d+[\-\u2013\ufffd]\d+\s*\(\d{4}\)", cleaned_line)
                 and categorize_section_heading(cleaned_line) is None
             ):
                 title = cleaned_line
+                title_line_idx = idx
                 break
     if not title:
         title = pdf_path.stem.replace("_", " ").title()
@@ -152,12 +227,23 @@ def extract_bibliographic_metadata(
     if pypdf_author and len(pypdf_author) > 2:
         authors = [a.strip() for a in re.split(r"[,;]| and ", pypdf_author) if a.strip()]
     if not authors:
-        for line_str in line_strings[1:6]:
+        for line_str in line_strings[1:8]:
             if line_str.lower().startswith("authors:"):
                 raw_auth = line_str.split(":", 1)[1]
                 raw_auth = re.sub(r"\(\d{4}\)", "", raw_auth)
                 authors = [a.strip() for a in raw_auth.split(",") if a.strip()]
                 break
+    if not authors and title_line_idx >= 0 and title_line_idx + 1 < len(line_strings):
+        candidate_auth_line = line_strings[title_line_idx + 1].strip()
+        if (
+            3 <= len(candidate_auth_line) <= 110
+            and not candidate_auth_line.lower().startswith(("abstract", "received:", "doi:", "1.", "keywords"))
+        ):
+            parts = [
+                p.strip(" •·*†‡1234567890\ufffd")
+                for p in re.split(r"[,;•·\u00b7\ufffd]|\band\b", candidate_auth_line)
+            ]
+            authors = [p for p in parts if len(p) >= 3 and any(c.isalpha() for c in p)]
     if not authors:
         authors = ["Unknown Author"]
 
@@ -167,6 +253,14 @@ def extract_bibliographic_metadata(
     year_matches = re.findall(r"\b(199\d|20[0-2]\d)\b", page1_full)
     if year_matches:
         year = int(year_matches[0])
+
+    # Append author surnames to title if not already present so author-named queries (e.g. "Cucker-Smale model")
+    # match the paper's chunks across BM25, ChromaDB, and Cross-Encoder reranking
+    if authors and authors != ["Unknown Author"]:
+        surnames = [a.split()[-1] for a in authors[:2] if a.split()]
+        if surnames and not any(s.lower() in title.lower() for s in surnames):
+            author_tag = " & ".join(surnames)
+            title = f"{title} ({author_tag}{f', {year}' if year else ''})"
 
     doi: Optional[str] = None
     doi_match = re.search(r"\b(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)\b", page1_full)

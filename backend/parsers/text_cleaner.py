@@ -56,7 +56,7 @@ SECTION_PATTERNS = [
 ]
 
 NUMBERED_HEADING_REGEX = re.compile(
-    r"^([1-9]\d?(?:\.\d+)*)\s+([A-Z][A-Za-z0-9\s\-:,&()]{2,55})$"
+    r"^([1-9]\d?(?:\.\d+)*)\.?\s+([A-Z][A-Za-z0-9\s\-:,&()]{2,55})$"
 )
 
 
@@ -69,6 +69,9 @@ def clean_scientific_text(raw_text: str) -> str:
     text = raw_text
     for lig, replacement in LIGATURE_MAP.items():
         text = text.replace(lig, replacement)
+
+    # Strip PDF font CID fallback markers such as (cid:2)
+    text = re.sub(r"\(cid:\d+\)", "", text)
 
     # Normalize Unicode with NFC (keeps Greek letters α, β, γ, Δ, Θ, Ω intact)
     text = unicodedata.normalize("NFC", text)
