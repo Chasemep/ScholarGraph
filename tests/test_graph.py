@@ -103,6 +103,15 @@ def test_graph_builder_constructs_typed_nodes_edges_and_shared_bridges():
     assert g.has_edge("node_paper_vaswani2017", "node_method_self_attention")
     assert g.has_edge("node_paper_hu2021", "node_method_self_attention")
 
+    # Verify node metadata includes rich scientific explanation and per-paper relation breakdown
+    sa_meta = g.nodes["node_method_self_attention"]["metadata"]
+    assert len(sa_meta["description"]) > 20
+    assert len(sa_meta["paper_relations"]) == 2
+    roles_by_paper = {r["paper_id"]: r["role"] for r in sa_meta["paper_relations"]}
+    assert roles_by_paper["paper_vaswani2017"] == "Introduces / Proposes"
+    assert roles_by_paper["paper_hu2021"] == "Builds On / Evaluates"
+    assert all(len(r["explanation"]) > 15 and r["page"] >= 1 for r in sa_meta["paper_relations"])
+
     # Serialize idle Cytoscape topology
     cy_res = builder.to_cytoscape(min_degree=1)
     assert cy_res.total_nodes == len(cy_res.elements.nodes)

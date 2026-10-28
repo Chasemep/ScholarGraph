@@ -10,6 +10,8 @@ import {
   Sparkles,
   ExternalLink,
   X,
+  BookOpen,
+  MessageSquarePlus,
 } from 'lucide-react'
 
 if (!cytoscape.prototype.hasInitialColaRegistered) {
@@ -26,11 +28,11 @@ const VIEW_MODES = [
 ]
 
 const ENTITY_LEGEND = [
-  { type: 'Paper', color: '#38BDF8', shape: 'Round Card' },
-  { type: 'Method', color: '#34D399', shape: 'Hexagon' },
-  { type: 'Dataset', color: '#FBBF24', shape: 'Diamond' },
-  { type: 'Metric', color: '#F472B6', shape: 'Octagon' },
-  { type: 'Author', color: '#A78BFA', shape: 'Circle' },
+  { type: 'Paper', color: '#38BDF8' },
+  { type: 'Method', color: '#34D399' },
+  { type: 'Dataset', color: '#FBBF24' },
+  { type: 'Metric', color: '#F472B6' },
+  { type: 'Author', color: '#A78BFA' },
 ]
 
 function formatShortNodeLabel(data) {
@@ -96,6 +98,7 @@ export default function GraphCanvas({
   activeQuery,
   onResetHighlight,
   onOpenPaperInReader,
+  onAskAboutNode,
 }) {
   const containerRef = useRef(null)
   const cyRef = useRef(null)
@@ -219,7 +222,6 @@ export default function GraphCanvas({
             opacity: 0.16,
           },
         },
-        // Idle edges: clean, no overlapping text labels
         {
           selector: 'edge',
           style: {
@@ -233,7 +235,6 @@ export default function GraphCanvas({
             opacity: 0.65,
           },
         },
-        // Direct paper-to-paper citation links stand out in sky blue
         {
           selector: 'edge.cites-edge',
           style: {
@@ -244,7 +245,6 @@ export default function GraphCanvas({
             opacity: 0.85,
           },
         },
-        // Active query paths OR clicked node neighborhood edges show relation labels & glow
         {
           selector: 'edge.active-edge',
           style: {
@@ -302,7 +302,6 @@ export default function GraphCanvas({
       },
     })
 
-    // Click-to-focus 1-hop neighborhood so arrows never look cluttered when inspecting a node
     cy.on('tap', 'node', (evt) => {
       const clicked = evt.target
       setSelectedNode(clicked.data())
@@ -319,7 +318,6 @@ export default function GraphCanvas({
       if (evt.target === cy) {
         setSelectedNode(null)
         cy.elements().removeClass('focused-node neighbor-edge')
-        // Restore query-active dimming or clear all dimming if idle
         cy.nodes().forEach((n) => {
           if (n.data('is_dimmed')) n.addClass('dimmed-node')
           else n.removeClass('dimmed-node')
@@ -359,6 +357,8 @@ export default function GraphCanvas({
     }
   }
 
+  const paperRelations = selectedNode?.metadata?.paper_relations || []
+
   return (
     <div className="flex flex-col h-full bg-slate-950 relative">
       {/* Graph Toolbar */}
@@ -373,7 +373,6 @@ export default function GraphCanvas({
           </span>
         </div>
 
-        {/* Clean View Selector & Camera Controls */}
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={viewMode}
@@ -460,13 +459,14 @@ export default function GraphCanvas({
             </div>
           )
         )}
-        <span className="text-slate-500">· Click any node to isolate its connections</span>
+        <span className="text-slate-500">· Click any node to explain &amp; inspect</span>
       </div>
 
-      {/* Rich Node Inspector Card (Bottom Right) */}
+      {/* Detailed Node Explanation & Lineage Drawer (Right Overlay) */}
       {selectedNode && (
-        <div className="absolute bottom-4 right-4 w-80 p-4 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl space-y-2.5 z-20">
-          <div className="flex items-center justify-between gap-2">
+        <div className="absolute top-14 right-4 bottom-4 w-96 max-w-[92vw] p-4 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl flex flex-col gap-3 z-20 overflow-hidden backdrop-blur-md">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 shrink-0">
             <span
               className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded text-slate-950"
               style={{ backgroundColor: selectedNode.color }}
@@ -475,58 +475,173 @@ export default function GraphCanvas({
             </span>
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono text-slate-400">
-                Connections: {selectedNode.degree}
+                {selectedNode.degree} Connection{selectedNode.degree === 1 ? '' : 's'}
               </span>
               <button
                 type="button"
                 onClick={() => setSelectedNode(null)}
-                className="text-slate-400 hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-white cursor-pointer p-0.5"
+                title="Close Inspector"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          <h4 className="text-sm font-semibold text-slate-100 leading-snug">
-            {selectedNode.label}
-          </h4>
+          {/* Node Title */}
+          <div className="shrink-0">
+            <h4 className="text-base font-bold text-slate-100 leading-snug">
+              {selectedNode.label}
+            </h4>
+            {selectedNode.type === 'Paper' && selectedNode.metadata?.authors && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                {selectedNode.metadata.authors.slice(0, 4).join(', ')}
+                {selectedNode.metadata.authors.length > 4 ? ' et al.' : ''} (
+                {selectedNode.metadata.year || 'N/A'})
+              </p>
+            )}
+          </div>
 
-          {selectedNode.type === 'Paper' && selectedNode.metadata && (
-            <div className="space-y-1.5 text-xs text-slate-300 border-t border-slate-800 pt-2">
-              {selectedNode.metadata.authors?.length > 0 && (
-                <p className="text-slate-400">
-                  <strong className="text-slate-200">Authors:</strong>{' '}
-                  {selectedNode.metadata.authors.slice(0, 4).join(', ')}
-                  {selectedNode.metadata.authors.length > 4 ? ' et al.' : ''}
+          {/* Scrollable Body: Definition + Per-Paper Relationship Explanations */}
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+            {/* What is this node? */}
+            {selectedNode.metadata?.description && (
+              <div className="p-3 rounded-lg bg-slate-800/80 border border-slate-700/70 space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-400">
+                  {selectedNode.type === 'Paper' ? 'Paper Abstract / Summary' : `What is ${selectedNode.label}?`}
                 </p>
-              )}
-              {selectedNode.metadata.methods?.length > 0 && (
-                <p className="text-slate-400">
-                  <strong className="text-emerald-300">Methods:</strong>{' '}
-                  {selectedNode.metadata.methods.join(', ')}
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {selectedNode.metadata.description}
                 </p>
-              )}
-              {selectedNode.metadata.datasets?.length > 0 && (
-                <p className="text-slate-400">
-                  <strong className="text-amber-300">Datasets:</strong>{' '}
-                  {selectedNode.metadata.datasets.join(', ')}
-                </p>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {selectedNode.type === 'Paper' && selectedNode.metadata?.paper_id && (
-            <button
-              type="button"
-              onClick={() =>
-                onOpenPaperInReader && onOpenPaperInReader(selectedNode.metadata.paper_id)
-              }
-              className="w-full mt-1 px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/50 text-sky-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Open Paper in PDF Reader
-            </button>
-          )}
+            {/* For Paper nodes: show extracted Methods & Datasets badges */}
+            {selectedNode.type === 'Paper' && selectedNode.metadata && (
+              <div className="space-y-2">
+                {selectedNode.metadata.methods?.length > 0 && (
+                  <div className="p-2.5 rounded-lg bg-slate-800/50 border border-slate-700/60">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-1.5">
+                      Key Methods Used / Proposed
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedNode.metadata.methods.map((m) => (
+                        <span
+                          key={m}
+                          className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                        >
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedNode.metadata.datasets?.length > 0 && (
+                  <div className="p-2.5 rounded-lg bg-slate-800/50 border border-slate-700/60">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400 mb-1.5">
+                      Evaluated Datasets
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedNode.metadata.datasets.map((d) => (
+                        <span
+                          key={d}
+                          className="text-[11px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                        >
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Relationship to Each Connected Paper */}
+            {paperRelations.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {selectedNode.type === 'Paper'
+                    ? `Citation Lineage (${paperRelations.length})`
+                    : `Relation to Connected Papers (${paperRelations.length})`}
+                </p>
+                {paperRelations.map((rel, idx) => {
+                  const isOriginator =
+                    rel.role === 'Introduces / Proposes' || rel.role === 'Cites Foundation'
+                  return (
+                    <div
+                      key={`${rel.paper_id}-${idx}`}
+                      className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/80 space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                            isOriginator
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                          }`}
+                        >
+                          {rel.role}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenPaperInReader && onOpenPaperInReader(rel.paper_id, rel.page)
+                          }
+                          className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium cursor-pointer"
+                          title="Open this paper in the PDF Reader"
+                        >
+                          <BookOpen className="w-3 h-3" />
+                          p.{rel.page || 1}
+                        </button>
+                      </div>
+
+                      <p className="text-xs font-semibold text-slate-100">
+                        {rel.paper_title} {rel.year ? `(${rel.year})` : ''}
+                      </p>
+
+                      <p className="text-xs text-slate-300 italic leading-relaxed">
+                        &ldquo;{rel.explanation}&rdquo;
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Action Footer */}
+          <div className="pt-2 border-t border-slate-800 flex flex-col gap-1.5 shrink-0">
+            {onAskAboutNode && (
+              <button
+                type="button"
+                onClick={() =>
+                  onAskAboutNode(
+                    selectedNode.type === 'Paper'
+                      ? `What are the main contributions and experimental results of ${selectedNode.label}?`
+                      : `Explain ${selectedNode.label} and compare how each paper in the corpus proposes, adapts, or evaluates it.`
+                  )
+                }
+                className="w-full px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <MessageSquarePlus className="w-3.5 h-3.5" />
+                Synthesize Full Explanation in Chat
+              </button>
+            )}
+
+            {selectedNode.type === 'Paper' && selectedNode.metadata?.paper_id && (
+              <button
+                type="button"
+                onClick={() =>
+                  onOpenPaperInReader && onOpenPaperInReader(selectedNode.metadata.paper_id, 1)
+                }
+                className="w-full px-3 py-2 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/50 text-sky-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open Paper in PDF Reader
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

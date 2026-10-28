@@ -1,10 +1,14 @@
-"""NetworkX directed graph topology builder and Cytoscape.js serializer with prompt-activated relevance."""
+"""NetworkX directed graph topology builder and Cytoscape.js serializer with node explanations."""
 
 import re
 from typing import Any, Dict, List, Optional, Set
 import networkx as nx
 
-from backend.graph.entity_miner import entity_miner
+from backend.graph.entity_miner import (
+    entity_miner,
+    find_entity_evidence_in_paper,
+    get_entity_description,
+)
 from backend.models.graph import (
     CytoscapeEdge,
     CytoscapeEdgeData,
@@ -55,17 +59,19 @@ class KnowledgeGraphBuilder:
         papers: List[PaperMetadata],
         chunks_by_paper: Dict[str, List[TextChunk]],
     ) -> nx.DiGraph:
-        """Construct a directed knowledge graph of Papers, Authors, Methods, Datasets, and Metrics."""
+        """Construct a directed knowledge graph with rich node explanations and per-paper relations."""
         g = nx.DiGraph()
         known_paper_ids = {p.id for p in papers}
+        papers_by_id = {p.id: p for p in papers}
         mined_by_paper: Dict[str, Dict[str, Any]] = {}
 
-        # First pass: extract entities and create Paper nodes with rich metadata
+        # First pass: extract entities and create Paper nodes with rich explanations
         for paper in papers:
             p_chunks = chunks_by_paper.get(paper.id, [])
             mined = entity_miner.extract_for_paper(paper, p_chunks)
             mined_by_paper[paper.id] = mined
 
+            summary_text = paper.abstract or (p_chunks[0].text if p_chunks else paper.title)
             paper_node_id = f"node_{paper.id}"
             g.add_node(
                 paper_node_id,
@@ -78,15 +84,48 @@ class KnowledgeGraphBuilder:
                     "authors": paper.authors,
                     "doi": paper.doi,
                     "total_pages": paper.total_pages,
+                    "description": summary_text,
                     "methods": mined["methods"],
                     "datasets": mined["datasets"],
                     "metrics": mined["metrics"],
+                    "paper_relations": [],
                 },
             )
 
-        # Second pass: add high-signal Author, Method, Dataset, Metric nodes + typed edges
+        def _register_entity_node(
+            node_id: str,
+            label: str,
+            entity_type: str,
+            paper: PaperMetadata,
+            p_chunks: List[TextChunk],
+        ) -> Dict[str, Any]:
+            evidence = find_entity_evidence_in_paper(label, paper, p_chunks)
+            if not g.has_node(node_id):
+                g.add_node(
+                    node_id,
+                    label=label,
+                    type=entity_type,
+                    color=NODE_COLORS[entity_type],
+                    metadata={
+                        "description": get_entity_description(label, entity_type),
+                        "papers": [paper.id],
+                        "paper_relations": [evidence],
+                    },
+                )
+            else:
+                meta = g.nodes[node_id]["metadata"]
+                papers_list = meta.setdefault("papers", [])
+                if paper.id not in papers_list:
+                    papers_list.append(paper.id)
+                rel_list = meta.setdefault("paper_relations", [])
+                if not any(r["paper_id"] == paper.id for r in rel_list):
+                    rel_list.append(evidence)
+            return evidence
+
+        # Second pass: add Author, Method, Dataset, Metric nodes + typed edges + per-paper relation evidence
         for paper in papers:
             paper_node_id = f"node_{paper.id}"
+            p_chunks = chunks_by_paper.get(paper.id, [])
             mined = mined_by_paper[paper.id]
             priority_context = f"{paper.title} {paper.abstract or ''}"
 
@@ -99,12 +138,35 @@ class KnowledgeGraphBuilder:
                         label=author_name,
                         type="Author",
                         color=NODE_COLORS["Author"],
-                        metadata={"papers": [paper.id]},
+                        metadata={
+                            "description": get_entity_description(author_name, "Author"),
+                            "papers": [paper.id],
+                            "paper_relations": [
+                                {
+                                    "paper_id": paper.id,
+                                    "paper_title": paper.title,
+                                    "year": paper.year,
+                                    "role": "Co-Author",
+                                    "explanation": paper.abstract or f"Authored {paper.title}.",
+                                    "page": 1,
+                                }
+                            ],
+                        },
                     )
                 else:
-                    papers_list = g.nodes[author_node_id]["metadata"].setdefault("papers", [])
-                    if paper.id not in papers_list:
-                        papers_list.append(paper.id)
+                    meta = g.nodes[author_node_id]["metadata"]
+                    if paper.id not in meta["papers"]:
+                        meta["papers"].append(paper.id)
+                        meta["paper_relations"].append(
+                            {
+                                "paper_id": paper.id,
+                                "paper_title": paper.title,
+                                "year": paper.year,
+                                "role": "Co-Author",
+                                "explanation": paper.abstract or f"Authored {paper.title}.",
+                                "page": 1,
+                            }
+                        )
 
                 g.add_edge(
                     author_node_id,
@@ -114,48 +176,33 @@ class KnowledgeGraphBuilder:
                     weight=1.0,
                 )
 
-            # Top signature Methods per paper (up to 3) -> Paper PROPOSES Method
+            # Top signature Methods per paper (up to 3)
             top_methods = _prioritize_entities(mined["methods"], priority_context, max_count=3)
             for method_name in top_methods:
                 method_node_id = _slugify_id("method", method_name)
-                if not g.has_node(method_node_id):
-                    g.add_node(
-                        method_node_id,
-                        label=method_name,
-                        type="Method",
-                        color=NODE_COLORS["Method"],
-                        metadata={"papers": [paper.id]},
-                    )
-                else:
-                    papers_list = g.nodes[method_node_id]["metadata"].setdefault("papers", [])
-                    if paper.id not in papers_list:
-                        papers_list.append(paper.id)
-
+                evidence = _register_entity_node(
+                    method_node_id, method_name, "Method", paper, p_chunks
+                )
+                edge_label = (
+                    "PROPOSES"
+                    if evidence["role"] == "Introduces / Proposes"
+                    else "BUILDS ON"
+                )
                 g.add_edge(
                     paper_node_id,
                     method_node_id,
                     type="PROPOSES",
-                    label="PROPOSES",
+                    label=edge_label,
                     weight=1.5,
                 )
 
-            # Top Datasets per paper (up to 2) -> Paper EVALUATES_ON Dataset
+            # Top Datasets per paper (up to 2)
             top_datasets = _prioritize_entities(mined["datasets"], priority_context, max_count=2)
             for dataset_name in top_datasets:
                 dataset_node_id = _slugify_id("dataset", dataset_name)
-                if not g.has_node(dataset_node_id):
-                    g.add_node(
-                        dataset_node_id,
-                        label=dataset_name,
-                        type="Dataset",
-                        color=NODE_COLORS["Dataset"],
-                        metadata={"papers": [paper.id]},
-                    )
-                else:
-                    papers_list = g.nodes[dataset_node_id]["metadata"].setdefault("papers", [])
-                    if paper.id not in papers_list:
-                        papers_list.append(paper.id)
-
+                _register_entity_node(
+                    dataset_node_id, dataset_name, "Dataset", paper, p_chunks
+                )
                 g.add_edge(
                     paper_node_id,
                     dataset_node_id,
@@ -164,23 +211,13 @@ class KnowledgeGraphBuilder:
                     weight=1.2,
                 )
 
-            # Top Metrics per paper (up to 2) -> Paper ACHIEVES Metric
+            # Top Metrics per paper (up to 2)
             top_metrics = _prioritize_entities(mined["metrics"], priority_context, max_count=2)
             for metric_name in top_metrics:
                 metric_node_id = _slugify_id("metric", metric_name)
-                if not g.has_node(metric_node_id):
-                    g.add_node(
-                        metric_node_id,
-                        label=metric_name,
-                        type="Metric",
-                        color=NODE_COLORS["Metric"],
-                        metadata={"papers": [paper.id]},
-                    )
-                else:
-                    papers_list = g.nodes[metric_node_id]["metadata"].setdefault("papers", [])
-                    if paper.id not in papers_list:
-                        papers_list.append(paper.id)
-
+                _register_entity_node(
+                    metric_node_id, metric_name, "Metric", paper, p_chunks
+                )
                 g.add_edge(
                     paper_node_id,
                     metric_node_id,
@@ -189,16 +226,37 @@ class KnowledgeGraphBuilder:
                     weight=1.0,
                 )
 
-            # Cross-paper CITES edges
+            # Cross-paper CITES edges + populate Paper node's paper_relations
             for cited_pid in mined["cited_paper_ids"]:
                 if cited_pid in known_paper_ids and cited_pid != paper.id:
                     target_paper_node = f"node_{cited_pid}"
+                    cited_paper = papers_by_id[cited_pid]
                     g.add_edge(
                         paper_node_id,
                         target_paper_node,
                         type="CITES",
                         label="CITES",
                         weight=2.0,
+                    )
+                    g.nodes[paper_node_id]["metadata"]["paper_relations"].append(
+                        {
+                            "paper_id": cited_paper.id,
+                            "paper_title": cited_paper.title,
+                            "year": cited_paper.year,
+                            "role": "Cites Foundation",
+                            "explanation": f"{paper.title} builds upon and cites {cited_paper.title}.",
+                            "page": 2,
+                        }
+                    )
+                    g.nodes[target_paper_node]["metadata"]["paper_relations"].append(
+                        {
+                            "paper_id": paper.id,
+                            "paper_title": paper.title,
+                            "year": paper.year,
+                            "role": "Cited By",
+                            "explanation": f"Cited and extended by {paper.title} ({paper.year}).",
+                            "page": 2,
+                        }
                     )
 
         self.graph = g

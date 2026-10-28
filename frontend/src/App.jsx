@@ -147,10 +147,16 @@ export default function App() {
     }
   }
 
-  const handleOpenPaperFromGraph = (paperId) => {
+  const handleOpenPaperFromGraph = (paperId, pageNum = 1) => {
     const found = papers.find((p) => p.id === paperId)
     if (found) {
       setActivePaper(found)
+      setActiveCitation({
+        paper_id: paperId,
+        paper_title: found.title,
+        page: pageNum,
+        bbox: null,
+      })
       setRightTab('pdf')
     }
   }
@@ -305,6 +311,7 @@ export default function App() {
               activeQuery={activeGraphQuery}
               onResetHighlight={handleResetGraphHighlight}
               onOpenPaperInReader={handleOpenPaperFromGraph}
+              onAskAboutNode={handleSendQuery}
             />
           ) : (
             <PDFViewer
