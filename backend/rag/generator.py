@@ -2,6 +2,7 @@
 
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
+import httpx
 
 from backend.config import settings
 from backend.models.paper import TextChunk
@@ -29,7 +30,6 @@ def _has_query_overlap(query: str, ranked_candidates: List[Dict[str, Any]]) -> b
     if not query_tokens:
         return False
 
-    # Check if any top candidate has a lexical BM25 match or shares key tokens
     for cand in ranked_candidates[:3]:
         chunk: TextChunk = cand["chunk"]
         chunk_tokens = set(
@@ -39,7 +39,6 @@ def _has_query_overlap(query: str, ranked_candidates: List[Dict[str, Any]]) -> b
         if len(overlap) >= 1 and cand.get("relevance_score", 0.0) >= settings.min_relevance_threshold:
             return True
 
-    # Also allow high semantic match above threshold + 0.35
     top_score = float(ranked_candidates[0].get("relevance_score", 0.0))
     return top_score >= (settings.min_relevance_threshold + 0.35)
 
@@ -77,7 +76,6 @@ def extractive_fallback_synthesis(
 
     for cand in ranked_candidates:
         chunk: TextChunk = cand["chunk"]
-        # Split chunk into sentences and pick the most relevant sentence(s)
         raw_sentences = [
             s.strip()
             for s in re.split(r"(?<=[.!?])\s+", chunk.text.strip())
@@ -119,21 +117,59 @@ class GroundedGenerator:
     ) -> None:
         self._llm_callable = llm_callable
 
-    def _call_gemini(self, prompt: str, api_key: str) -> str:
-        """Invoke Google Gemini API with temperature=0.0 for deterministic grounded generation."""
+    def _call_gemini(self, prompt: str, api_key: str) -> Tuple[str, str]:
+        """Invoke Google Gemini REST API with temperature=0.0 for deterministic grounded generation."""
         if self._llm_callable is not None:
-            return self._llm_callable(SYSTEM_GROUNDING_PROMPT, prompt, api_key)
+            return self._llm_callable(SYSTEM_GROUNDING_PROMPT, prompt, api_key), settings.gemini_model
 
-        import google.generativeai as genai
+        candidate_models = [
+            settings.gemini_model,
+            "gemini-3-flash-preview",
+            "gemini-flash-lite-latest",
+        ]
+        seen: set[str] = set()
+        models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name=settings.gemini_model,
-            system_instruction=SYSTEM_GROUNDING_PROMPT,
-            generation_config={"temperature": 0.0, "max_output_tokens": 700},
-        )
-        response = model.generate_content(prompt)
-        return (response.text or "").strip()
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": SYSTEM_GROUNDING_PROMPT}],
+            },
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.0,
+                "maxOutputTokens": 4096,
+            },
+        }
+
+        last_err: Optional[Exception] = None
+        with httpx.Client(timeout=20.0) as client:
+            for model_name in models_to_try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+                try:
+                    resp = client.post(url, params={"key": api_key}, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        parts = (
+                            data.get("candidates", [{}])[0]
+                            .get("content", {})
+                            .get("parts", [])
+                        )
+                        text_chunks = [p.get("text", "") for p in parts if "text" in p]
+                        text_out = "".join(text_chunks).strip()
+                        if text_out:
+                            return text_out, model_name
+                except Exception as exc:
+                    last_err = exc
+                    continue
+
+        if last_err:
+            raise last_err
+        raise RuntimeError("All Gemini model endpoints failed or returned empty responses.")
 
     def generate(
         self,
@@ -143,7 +179,6 @@ class GroundedGenerator:
         prefer_extractive: bool = False,
     ) -> Dict[str, Any]:
         """Generate a grounded answer and return status, answer, citations, and model_used."""
-        # Guardrail 1: Empty candidates or below relevance / domain overlap threshold
         if not ranked_candidates or not _has_query_overlap(query, ranked_candidates):
             return {
                 "answer": REFUSAL_MESSAGE,
@@ -152,7 +187,6 @@ class GroundedGenerator:
                 "model_used": "deterministic-guardrail",
             }
 
-        # Filter to candidates meeting the minimum relevance threshold
         valid_candidates = [
             c
             for c in ranked_candidates
@@ -185,15 +219,14 @@ class GroundedGenerator:
                 "Provide a concise, strictly grounded synthesis citing [paper_id, Page X] for every claim:"
             )
             try:
-                llm_text = self._call_gemini(user_prompt, effective_api_key)
+                llm_text, used_model_name = self._call_gemini(user_prompt, effective_api_key)
                 if REFUSAL_MESSAGE.lower() in llm_text.lower():
                     return {
                         "answer": REFUSAL_MESSAGE,
                         "status": "insufficient_context",
                         "citations": [],
-                        "model_used": settings.gemini_model,
+                        "model_used": used_model_name,
                     }
-                # Verify that the LLM included at least one valid [paper_id, Page X] citation
                 valid_paper_ids = {c.paper_id for c in citations}
                 has_valid_citation = any(pid in llm_text for pid in valid_paper_ids)
                 if llm_text and has_valid_citation:
@@ -201,13 +234,11 @@ class GroundedGenerator:
                         "answer": llm_text,
                         "status": "success",
                         "citations": citations,
-                        "model_used": settings.gemini_model,
+                        "model_used": used_model_name,
                     }
             except Exception:
-                # Fall through seamlessly to deterministic extractive fallback
                 pass
 
-        # Deterministic Extractive Fallback
         extractive_answer = extractive_fallback_synthesis(query, valid_candidates)
         if extractive_answer == REFUSAL_MESSAGE:
             return {
@@ -226,4 +257,3 @@ class GroundedGenerator:
 
 
 generator = GroundedGenerator()
-

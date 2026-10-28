@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # API & LLM Configuration
     gemini_api_key: str = Field(default="", description="Google Gemini API key for grounded synthesis")
-    gemini_model: str = Field(default="gemini-2.0-flash", description="Default Gemini model identifier")
+    gemini_model: str = Field(default="gemini-3-flash-preview", description="Default Gemini model identifier")
 
     # Server Configuration
     host: str = Field(default="127.0.0.1", description="FastAPI bind host")
