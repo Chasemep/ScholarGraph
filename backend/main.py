@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.api.query_routes import router as query_router
 from backend.config import settings
 from backend.rag.vector_store import vector_store
 from backend.storage.db import db
@@ -16,6 +17,8 @@ app = FastAPI(
     description="Grounded Scientific Literature Exploration & Knowledge Graph Platform",
     version="1.0.0",
 )
+
+app.include_router(query_router)
 
 app.add_middleware(
     CORSMiddleware,

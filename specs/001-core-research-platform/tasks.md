@@ -44,19 +44,19 @@ description: "Task list for Core Grounded Literature Research Platform implement
 **Independent Test**: Ingest two seed papers (*Attention Is All You Need* and *LoRA*), submit a comparative question regarding parameter efficiency, verify that the response cites both papers accurately with non-null coordinates, click a citation token, and confirm the PDF viewer jumps to the exact page and renders the highlight overlay.
 
 ### Tests for User Story 1
-- [ ] T012 [P] [US1] Create automated unit and contract tests for BM25 indexing, ChromaDB vector retrieval, RRF fusion, and Cross-Encoder re-ranking in `tests/test_rag.py`
-- [ ] T013 [P] [US1] Create automated integration tests for grounded citation verification and 0.0% hallucination fallback in `tests/test_synthesis.py`
+- [x] T012 [P] [US1] Create automated unit and contract tests for BM25 indexing, ChromaDB vector retrieval, RRF fusion, and Cross-Encoder re-ranking in `tests/test_rag.py`
+- [x] T013 [P] [US1] Create automated integration tests for grounded citation verification and 0.0% hallucination fallback in `tests/test_synthesis.py`
 
 ### Implementation for User Story 1
-- [ ] T014 [P] [US1] Create Pydantic v2 RAG request and response models (`QueryRequest`, `QueryResponse`, `CitationToken`) with score validations in `backend/models/rag.py`
-- [ ] T015 [P] [US1] Implement sparse lexical keyword index with tokenization and domain stopword filtering using `rank_bm25.BM25Okapi` in `backend/rag/bm25_index.py`
-- [ ] T016 [US1] Implement candidate fusion using Reciprocal Rank Fusion ($k=60$) and neural cross-attention re-ranking (`ms-marco-MiniLM-L-6-v2`) returning Top-5 passages in `backend/rag/reranker.py`
-- [ ] T017 [US1] Implement strict context-constrained synthesis generator supporting Google Gemini API with automatic fallback to deterministic extractive synthesis in `backend/rag/generator.py`
-- [ ] T018 [US1] Implement RAG query endpoint `POST /api/query` and PDF stream endpoint `GET /api/documents/{paper_id}/pdf` in `backend/api/query_routes.py`
-- [ ] T019 [P] [US1] Implement frontend Axios API client wrapper with request/response interceptors in `frontend/src/services/api.js`
-- [ ] T020 [US1] Build left-panel chat workspace component with prompt input, markdown rendering, and clickable citation badges in `frontend/src/components/ChatWorkspace.jsx`
-- [ ] T021 [US1] Build right-panel synchronized PDF viewer using `pdfjs-dist` supporting smooth page jump and luminous bounding-box highlight overlay rendering in `frontend/src/components/PDFViewer.jsx`
-- [ ] T022 [US1] Integrate split-screen workspace in `frontend/src/App.jsx`, wiring citation click events in `ChatWorkspace.jsx` to scroll and highlight actions in `PDFViewer.jsx`
+- [x] T014 [P] [US1] Create Pydantic v2 RAG request and response models (`QueryRequest`, `QueryResponse`, `CitationToken`) with score validations in `backend/models/rag.py`
+- [x] T015 [P] [US1] Implement sparse lexical keyword index with tokenization and domain stopword filtering using `rank_bm25.BM25Okapi` in `backend/rag/bm25_index.py`
+- [x] T016 [US1] Implement candidate fusion using Reciprocal Rank Fusion ($k=60$) and neural cross-attention re-ranking (`ms-marco-MiniLM-L-6-v2`) returning Top-5 passages in `backend/rag/reranker.py`
+- [x] T017 [US1] Implement strict context-constrained synthesis generator supporting Google Gemini API with automatic fallback to deterministic extractive synthesis in `backend/rag/generator.py`
+- [x] T018 [US1] Implement RAG query endpoint `POST /api/query` and PDF stream endpoint `GET /api/documents/{paper_id}/pdf` in `backend/api/query_routes.py`
+- [x] T019 [P] [US1] Implement frontend Axios API client wrapper with request/response interceptors in `frontend/src/services/api.js`
+- [x] T020 [US1] Build left-panel chat workspace component with prompt input, markdown rendering, and clickable citation badges in `frontend/src/components/ChatWorkspace.jsx`
+- [x] T021 [US1] Build right-panel synchronized PDF viewer using `pdfjs-dist` supporting smooth page jump and luminous bounding-box highlight overlay rendering in `frontend/src/components/PDFViewer.jsx`
+- [x] T022 [US1] Integrate split-screen workspace in `frontend/src/App.jsx`, wiring citation click events in `ChatWorkspace.jsx` to scroll and highlight actions in `PDFViewer.jsx`
 
 **Checkpoint**: User Story 1 is fully functional and delivers an independently testable MVP.
 
