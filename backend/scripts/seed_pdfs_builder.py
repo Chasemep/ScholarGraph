@@ -290,16 +290,51 @@ def build_pdf_bytes(paper_spec: Dict[str, Any]) -> bytes:
     return bytes(out)
 
 
-def ensure_seed_pdfs(target_dir: Path | None = None) -> List[Path]:
-    """Generate all 5 seed PDF files into data/papers/ if missing or regenerate them."""
+def ensure_seed_pdfs(target_dir: Path | None = None, force_arxiv_download: bool = False) -> List[Path]:
+    """Ensure all 5 seed PDF files exist in data/papers/, preferring full arXiv PDFs."""
+    import httpx
+
     out_dir = Path(target_dir) if target_dir else Path(settings.papers_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     generated_paths: List[Path] = []
 
+    arxiv_urls = {
+        "vaswani2017_attention.pdf": "https://arxiv.org/pdf/1706.03762.pdf",
+        "hu2021_lora.pdf": "https://arxiv.org/pdf/2106.09685.pdf",
+        "devlin2019_bert.pdf": "https://arxiv.org/pdf/1810.04805.pdf",
+        "su2021_roformer.pdf": "https://arxiv.org/pdf/2104.09864.pdf",
+        "dao2022_flashattention.pdf": "https://arxiv.org/pdf/2205.14135.pdf",
+    }
+
     for paper_spec in SEED_PAPERS_MANIFEST:
-        pdf_path = out_dir / paper_spec["filename"]
-        pdf_bytes = build_pdf_bytes(paper_spec)
-        pdf_path.write_bytes(pdf_bytes)
+        fname = paper_spec["filename"]
+        pdf_path = out_dir / fname
+
+        # Keep existing full arXiv PDF (> 50 KB) unless force_arxiv_download is requested
+        if not force_arxiv_download and pdf_path.exists() and pdf_path.stat().st_size > 50_000:
+            generated_paths.append(pdf_path)
+            continue
+
+        # Attempt to download full original paper from arXiv
+        url = arxiv_urls.get(fname)
+        if url and (force_arxiv_download or not pdf_path.exists() or pdf_path.stat().st_size <= 50_000):
+            try:
+                with httpx.Client(follow_redirects=True, timeout=45.0) as client:
+                    resp = client.get(
+                        url,
+                        headers={"User-Agent": "ScholarGraph/1.0 (Academic Literature Research Platform)"},
+                    )
+                    if resp.status_code == 200 and resp.content[:5] == b"%PDF-":
+                        pdf_path.write_bytes(resp.content)
+                        generated_paths.append(pdf_path)
+                        continue
+            except Exception:
+                pass
+
+        # Fallback for offline environments if file does not exist yet
+        if not pdf_path.exists():
+            pdf_bytes = build_pdf_bytes(paper_spec)
+            pdf_path.write_bytes(pdf_bytes)
         generated_paths.append(pdf_path)
 
     return generated_paths
