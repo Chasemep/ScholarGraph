@@ -9,35 +9,54 @@ import {
   RotateCcw,
   Sparkles,
   ExternalLink,
+  X,
 } from 'lucide-react'
 
-// Register force-directed cola layout once
 if (!cytoscape.prototype.hasInitialColaRegistered) {
   cytoscape.use(cola)
   cytoscape.prototype.hasInitialColaRegistered = true
 }
 
+const VIEW_MODES = [
+  { id: 'CORE', label: 'Core Lineage (Papers + Methods + Datasets)' },
+  { id: 'METHODS', label: 'Papers + Methods' },
+  { id: 'DATASETS', label: 'Papers + Datasets' },
+  { id: 'CITATIONS', label: 'Paper Citations Only' },
+  { id: 'ALL', label: 'Full Graph (+Authors & Metrics)' },
+]
+
 const ENTITY_LEGEND = [
-  { type: 'Paper', color: '#38BDF8', shape: 'Round Rect' },
+  { type: 'Paper', color: '#38BDF8', shape: 'Round Card' },
   { type: 'Method', color: '#34D399', shape: 'Hexagon' },
   { type: 'Dataset', color: '#FBBF24', shape: 'Diamond' },
   { type: 'Metric', color: '#F472B6', shape: 'Octagon' },
   { type: 'Author', color: '#A78BFA', shape: 'Circle' },
 ]
 
+function formatShortNodeLabel(data) {
+  const raw = String(data.label || '')
+  if (data.type === 'Paper') {
+    const shortTitle = raw.includes(':') ? raw.split(':')[0].trim() : raw
+    const truncated =
+      shortTitle.length > 28 ? `${shortTitle.slice(0, 26).trim()}…` : shortTitle
+    const year = data.metadata?.year ? ` (${data.metadata.year})` : ''
+    return `${truncated}${year}`
+  }
+  return raw.length > 26 ? `${raw.slice(0, 24).trim()}…` : raw
+}
+
 function computeNodeSize(data) {
-  // Dual-Mode Sizing:
-  // 1. Query-Active Mode: scale prominently by relevance_score [0.0 - 1.0]
   if (typeof data.relevance_score === 'number' && data.relevance_score !== null) {
     if (data.relevance_score >= 0.7) {
-      return Math.round(34 + data.relevance_score * 28)
+      return Math.round(42 + data.relevance_score * 24)
     }
-    return 24
+    return 26
   }
-  // 2. Idle Topology Mode: scale by connection degree
   const deg = Number(data.degree || 1)
-  const base = data.type === 'Paper' ? 34 : 24
-  return Math.min(62, base + Math.round(Math.sqrt(deg) * 6))
+  if (data.type === 'Paper') {
+    return Math.min(64, 42 + Math.round(Math.sqrt(deg) * 5))
+  }
+  return Math.min(48, 26 + Math.round(Math.sqrt(deg) * 4))
 }
 
 function getNodeShape(type) {
@@ -56,6 +75,22 @@ function getNodeShape(type) {
   }
 }
 
+function shouldKeepNode(nodeType, viewMode) {
+  switch (viewMode) {
+    case 'CORE':
+      return nodeType === 'Paper' || nodeType === 'Method' || nodeType === 'Dataset'
+    case 'METHODS':
+      return nodeType === 'Paper' || nodeType === 'Method'
+    case 'DATASETS':
+      return nodeType === 'Paper' || nodeType === 'Dataset'
+    case 'CITATIONS':
+      return nodeType === 'Paper'
+    case 'ALL':
+    default:
+      return true
+  }
+}
+
 export default function GraphCanvas({
   graphData,
   activeQuery,
@@ -66,7 +101,8 @@ export default function GraphCanvas({
   const cyRef = useRef(null)
 
   const [selectedNode, setSelectedNode] = useState(null)
-  const [typeFilter, setTypeFilter] = useState('ALL')
+  const [viewMode, setViewMode] = useState('CORE')
+  const [visibleCounts, setVisibleCounts] = useState({ nodes: 0, edges: 0 })
 
   useEffect(() => {
     if (!containerRef.current || !graphData?.elements) return
@@ -74,26 +110,27 @@ export default function GraphCanvas({
     const rawNodes = graphData.elements.nodes || []
     const rawEdges = graphData.elements.edges || []
 
-    const filteredNodes =
-      typeFilter === 'ALL'
-        ? rawNodes
-        : rawNodes.filter(
-            (n) => n.data.type === typeFilter || n.data.type === 'Paper'
-          )
+    const filteredNodes = rawNodes.filter((n) =>
+      shouldKeepNode(n.data.type, viewMode)
+    )
     const allowedIds = new Set(filteredNodes.map((n) => n.data.id))
     const filteredEdges = rawEdges.filter(
       (e) => allowedIds.has(e.data.source) && allowedIds.has(e.data.target)
     )
+
+    setVisibleCounts({ nodes: filteredNodes.length, edges: filteredEdges.length })
 
     const cyElements = [
       ...filteredNodes.map((n) => ({
         group: 'nodes',
         data: {
           ...n.data,
+          displayLabel: formatShortNodeLabel(n.data),
           computedSize: computeNodeSize(n.data),
           computedShape: getNodeShape(n.data.type),
         },
         classes: [
+          n.data.type === 'Paper' ? 'paper-node' : 'entity-node',
           n.data.is_dimmed ? 'dimmed-node' : '',
           typeof n.data.relevance_score === 'number' && n.data.relevance_score >= 0.7
             ? 'active-node'
@@ -106,6 +143,7 @@ export default function GraphCanvas({
         group: 'edges',
         data: { ...e.data },
         classes: [
+          e.data.type === 'CITES' ? 'cites-edge' : 'concept-edge',
           e.data.is_active ? 'active-edge' : '',
           e.data.is_dimmed ? 'dimmed-edge' : '',
         ]
@@ -121,102 +159,175 @@ export default function GraphCanvas({
     const cy = cytoscape({
       container: containerRef.current,
       elements: cyElements,
+      minZoom: 0.35,
+      maxZoom: 2.5,
+      wheelSensitivity: 0.25,
       style: [
         {
           selector: 'node',
           style: {
-            label: 'data(label)',
+            label: 'data(displayLabel)',
             width: 'data(computedSize)',
             height: 'data(computedSize)',
             shape: 'data(computedShape)',
             'background-color': 'data(color)',
-            'border-width': 2,
+            'border-width': 2.5,
             'border-color': '#0f172a',
-            color: '#f8fafc',
-            'font-size': '10px',
+            color: '#f1f5f9',
+            'font-size': '11px',
             'font-weight': 600,
             'text-valign': 'bottom',
             'text-halign': 'center',
-            'text-margin-y': 5,
+            'text-margin-y': 7,
             'text-wrap': 'wrap',
-            'text-max-width': '110px',
-            'text-outline-width': 2,
+            'text-max-width': '135px',
+            'text-outline-width': 2.5,
             'text-outline-color': '#020617',
             'transition-property': 'width, height, opacity, border-width, border-color',
-            'transition-duration': '300ms',
+            'transition-duration': '250ms',
+          },
+        },
+        {
+          selector: 'node.paper-node',
+          style: {
+            'border-width': 3,
+            'border-color': '#e0f2fe',
+            'font-size': '12px',
+            'font-weight': 700,
           },
         },
         {
           selector: 'node.active-node',
           style: {
-            'border-width': 4,
+            'border-width': 4.5,
             'border-color': '#facc15',
-            'font-size': '11px',
+            'font-size': '12px',
+            'z-index': 999,
+          },
+        },
+        {
+          selector: 'node.focused-node',
+          style: {
+            'border-width': 4,
+            'border-color': '#38bdf8',
             'z-index': 999,
           },
         },
         {
           selector: 'node.dimmed-node',
           style: {
-            opacity: 0.2,
+            opacity: 0.16,
           },
         },
+        // Idle edges: clean, no overlapping text labels
         {
           selector: 'edge',
           style: {
-            width: 1.6,
-            'line-color': '#475569',
+            width: 1.5,
+            'line-color': '#334155',
             'target-arrow-color': '#475569',
             'target-arrow-shape': 'triangle',
+            'arrow-scale': 0.85,
             'curve-style': 'bezier',
-            label: 'data(label)',
-            'font-size': '8px',
-            color: '#94a3b8',
-            'text-rotation': 'autorotate',
-            'text-background-opacity': 0.85,
-            'text-background-color': '#020617',
-            'text-background-padding': '2px',
+            label: '',
+            opacity: 0.65,
+          },
+        },
+        // Direct paper-to-paper citation links stand out in sky blue
+        {
+          selector: 'edge.cites-edge',
+          style: {
+            width: 2.4,
+            'line-color': '#0284c7',
+            'target-arrow-color': '#38bdf8',
+            'line-style': 'solid',
             opacity: 0.85,
           },
         },
+        // Active query paths OR clicked node neighborhood edges show relation labels & glow
         {
           selector: 'edge.active-edge',
           style: {
             width: 4,
             'line-color': '#facc15',
             'target-arrow-color': '#facc15',
+            label: 'data(label)',
             color: '#fef08a',
             'font-size': '9px',
             'font-weight': 'bold',
+            'text-rotation': 'autorotate',
+            'text-background-opacity': 0.9,
+            'text-background-color': '#020617',
+            'text-background-padding': '3px',
             opacity: 1.0,
             'z-index': 999,
           },
         },
         {
+          selector: 'edge.neighbor-edge',
+          style: {
+            width: 3,
+            'line-color': '#38bdf8',
+            'target-arrow-color': '#38bdf8',
+            label: 'data(label)',
+            color: '#bae6fd',
+            'font-size': '9px',
+            'font-weight': 600,
+            'text-rotation': 'autorotate',
+            'text-background-opacity': 0.9,
+            'text-background-color': '#020617',
+            'text-background-padding': '3px',
+            opacity: 1.0,
+            'z-index': 990,
+          },
+        },
+        {
           selector: 'edge.dimmed-edge',
           style: {
-            opacity: 0.2,
+            opacity: 0.12,
+            label: '',
           },
         },
       ],
       layout: {
         name: 'cola',
         animate: true,
-        maxSimulationTime: 1800,
-        nodeSpacing: 28,
-        edgeLengthVal: 95,
+        maxSimulationTime: 2200,
+        avoidOverlap: true,
+        handleDisconnected: true,
+        nodeSpacing: (node) => (node.data('type') === 'Paper' ? 68 : 48),
+        edgeLength: (edge) => (edge.data('type') === 'CITES' ? 210 : 165),
         randomize: false,
+        padding: 48,
       },
     })
 
+    // Click-to-focus 1-hop neighborhood so arrows never look cluttered when inspecting a node
     cy.on('tap', 'node', (evt) => {
-      const nodeData = evt.target.data()
-      setSelectedNode(nodeData)
+      const clicked = evt.target
+      setSelectedNode(clicked.data())
+
+      const neighborhood = clicked.closedNeighborhood()
+      cy.elements().removeClass('focused-node neighbor-edge dimmed-node dimmed-edge')
+      cy.nodes().not(neighborhood.nodes()).addClass('dimmed-node')
+      cy.edges().not(neighborhood.edges()).addClass('dimmed-edge')
+      clicked.addClass('focused-node')
+      neighborhood.edges().addClass('neighbor-edge')
     })
 
     cy.on('tap', (evt) => {
       if (evt.target === cy) {
         setSelectedNode(null)
+        cy.elements().removeClass('focused-node neighbor-edge')
+        // Restore query-active dimming or clear all dimming if idle
+        cy.nodes().forEach((n) => {
+          if (n.data('is_dimmed')) n.addClass('dimmed-node')
+          else n.removeClass('dimmed-node')
+        })
+        cy.edges().forEach((e) => {
+          if (e.data('is_dimmed')) e.addClass('dimmed-edge')
+          else e.removeClass('dimmed-edge')
+        })
       }
     })
 
@@ -228,7 +339,7 @@ export default function GraphCanvas({
         cyRef.current = null
       }
     }
-  }, [graphData, typeFilter])
+  }, [graphData, viewMode])
 
   const handleZoom = (factor) => {
     if (!cyRef.current) return
@@ -244,7 +355,7 @@ export default function GraphCanvas({
 
   const handleFit = () => {
     if (cyRef.current) {
-      cyRef.current.fit(undefined, 36)
+      cyRef.current.fit(undefined, 45)
     }
   }
 
@@ -255,31 +366,29 @@ export default function GraphCanvas({
         <div className="flex items-center gap-2">
           <Network className="w-4 h-4 text-emerald-400" />
           <span className="text-xs font-semibold text-slate-200">
-            2D Scientific Knowledge Graph
+            Knowledge Graph
           </span>
           <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-mono">
-            {graphData?.total_nodes || 0} Nodes · {graphData?.total_edges || 0} Edges
+            {visibleCounts.nodes} Nodes · {visibleCounts.edges} Edges
           </span>
         </div>
 
-        {/* Entity Filter Pills & Camera Controls */}
+        {/* Clean View Selector & Camera Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 bg-slate-800/90 p-0.5 rounded-lg border border-slate-700 text-[11px]">
-            {['ALL', 'Paper', 'Method', 'Dataset', 'Metric', 'Author'].map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setTypeFilter(type)}
-                className={`px-2 py-1 rounded-md font-medium transition cursor-pointer ${
-                  typeFilter === type
-                    ? 'bg-sky-500 text-slate-950 font-semibold'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                {type}
-              </button>
+          <select
+            value={viewMode}
+            onChange={(e) => {
+              setSelectedNode(null)
+              setViewMode(e.target.value)
+            }}
+            className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+          >
+            {VIEW_MODES.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
             ))}
-          </div>
+          </select>
 
           <div className="flex items-center gap-1 bg-slate-800 rounded-md px-1.5 py-1 border border-slate-700">
             <button
@@ -316,8 +425,8 @@ export default function GraphCanvas({
           <div className="flex items-center gap-2 truncate">
             <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
             <span className="truncate">
-              Prompt-Active Graph Mode: Scaling relevant entities &amp; illuminating 4px paths for{' '}
-              <strong>&ldquo;{activeQuery}&rdquo;</strong> (peripheral nodes dimmed to 20%)
+              Active Prompt Path: Highlighting relevant nodes &amp; 4px paths for{' '}
+              <strong>&ldquo;{activeQuery}&rdquo;</strong>
             </span>
           </div>
           {onResetHighlight && (
@@ -327,7 +436,7 @@ export default function GraphCanvas({
               className="ml-2 px-2 py-0.5 rounded bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 text-amber-100 flex items-center gap-1 shrink-0 cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
-              Reset View
+              Reset
             </button>
           )}
         </div>
@@ -338,22 +447,25 @@ export default function GraphCanvas({
 
       {/* Entity Legend Overlay (Bottom Left) */}
       <div className="absolute bottom-4 left-4 p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 backdrop-blur-sm flex flex-wrap items-center gap-3 text-[11px] text-slate-300 pointer-events-none">
-        {ENTITY_LEGEND.map((item) => (
-          <div key={item.type} className="flex items-center gap-1.5">
-            <span
-              className="w-3 h-3 rounded-sm inline-block"
-              style={{ backgroundColor: item.color }}
-            />
-            <span>
-              <strong>{item.type}</strong> ({item.shape})
-            </span>
-          </div>
-        ))}
+        {ENTITY_LEGEND.filter((item) => shouldKeepNode(item.type, viewMode)).map(
+          (item) => (
+            <div key={item.type} className="flex items-center gap-1.5">
+              <span
+                className="w-3 h-3 rounded-sm inline-block"
+                style={{ backgroundColor: item.color }}
+              />
+              <span>
+                <strong>{item.type}</strong>
+              </span>
+            </div>
+          )
+        )}
+        <span className="text-slate-500">· Click any node to isolate its connections</span>
       </div>
 
-      {/* Node Inspector Card (Bottom Right) */}
+      {/* Rich Node Inspector Card (Bottom Right) */}
       {selectedNode && (
-        <div className="absolute bottom-4 right-4 w-80 p-3.5 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl space-y-2 z-20">
+        <div className="absolute bottom-4 right-4 w-80 p-4 rounded-xl bg-slate-900/95 border border-slate-700 shadow-2xl space-y-2.5 z-20">
           <div className="flex items-center justify-between gap-2">
             <span
               className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded text-slate-950"
@@ -361,15 +473,47 @@ export default function GraphCanvas({
             >
               {selectedNode.type}
             </span>
-            <span className="text-xs font-mono text-slate-400">
-              Degree: {selectedNode.degree}
-              {typeof selectedNode.relevance_score === 'number' &&
-                ` · Rel: ${(selectedNode.relevance_score * 100).toFixed(0)}%`}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-slate-400">
+                Connections: {selectedNode.degree}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedNode(null)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
+
           <h4 className="text-sm font-semibold text-slate-100 leading-snug">
             {selectedNode.label}
           </h4>
+
+          {selectedNode.type === 'Paper' && selectedNode.metadata && (
+            <div className="space-y-1.5 text-xs text-slate-300 border-t border-slate-800 pt-2">
+              {selectedNode.metadata.authors?.length > 0 && (
+                <p className="text-slate-400">
+                  <strong className="text-slate-200">Authors:</strong>{' '}
+                  {selectedNode.metadata.authors.slice(0, 4).join(', ')}
+                  {selectedNode.metadata.authors.length > 4 ? ' et al.' : ''}
+                </p>
+              )}
+              {selectedNode.metadata.methods?.length > 0 && (
+                <p className="text-slate-400">
+                  <strong className="text-emerald-300">Methods:</strong>{' '}
+                  {selectedNode.metadata.methods.join(', ')}
+                </p>
+              )}
+              {selectedNode.metadata.datasets?.length > 0 && (
+                <p className="text-slate-400">
+                  <strong className="text-amber-300">Datasets:</strong>{' '}
+                  {selectedNode.metadata.datasets.join(', ')}
+                </p>
+              )}
+            </div>
+          )}
 
           {selectedNode.type === 'Paper' && selectedNode.metadata?.paper_id && (
             <button
@@ -388,4 +532,3 @@ export default function GraphCanvas({
     </div>
   )
 }
-

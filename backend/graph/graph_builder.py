@@ -31,6 +31,19 @@ def _slugify_id(prefix: str, label: str) -> str:
     return f"node_{prefix.lower()}_{slug}"
 
 
+def _prioritize_entities(candidates: List[str], priority_text: str, max_count: int) -> List[str]:
+    """Prioritize entities that appear in the paper title/abstract to keep the graph high-signal."""
+    if len(candidates) <= max_count:
+        return candidates
+    pt_lower = priority_text.lower()
+    scored = sorted(
+        candidates,
+        key=lambda item: (1 if item.lower() in pt_lower else 0, -len(item)),
+        reverse=True,
+    )
+    return scored[:max_count]
+
+
 class KnowledgeGraphBuilder:
     """Builds a NetworkX DiGraph over ingested papers and serializes to Cytoscape.js format."""
 
@@ -45,9 +58,14 @@ class KnowledgeGraphBuilder:
         """Construct a directed knowledge graph of Papers, Authors, Methods, Datasets, and Metrics."""
         g = nx.DiGraph()
         known_paper_ids = {p.id for p in papers}
+        mined_by_paper: Dict[str, Dict[str, Any]] = {}
 
-        # First pass: create Paper nodes
+        # First pass: extract entities and create Paper nodes with rich metadata
         for paper in papers:
+            p_chunks = chunks_by_paper.get(paper.id, [])
+            mined = entity_miner.extract_for_paper(paper, p_chunks)
+            mined_by_paper[paper.id] = mined
+
             paper_node_id = f"node_{paper.id}"
             g.add_node(
                 paper_node_id,
@@ -60,17 +78,20 @@ class KnowledgeGraphBuilder:
                     "authors": paper.authors,
                     "doi": paper.doi,
                     "total_pages": paper.total_pages,
+                    "methods": mined["methods"],
+                    "datasets": mined["datasets"],
+                    "metrics": mined["metrics"],
                 },
             )
 
-        # Second pass: extract entities and add Author, Method, Dataset, Metric nodes + typed edges
+        # Second pass: add high-signal Author, Method, Dataset, Metric nodes + typed edges
         for paper in papers:
             paper_node_id = f"node_{paper.id}"
-            p_chunks = chunks_by_paper.get(paper.id, [])
-            mined = entity_miner.extract_for_paper(paper, p_chunks)
+            mined = mined_by_paper[paper.id]
+            priority_context = f"{paper.title} {paper.abstract or ''}"
 
-            # Authors (limit to top 3 per paper to keep canvas clean and readable)
-            for author_name in mined["authors"][:3]:
+            # Lead Authors (up to 2 per paper)
+            for author_name in mined["authors"][:2]:
                 author_node_id = _slugify_id("author", author_name)
                 if not g.has_node(author_node_id):
                     g.add_node(
@@ -93,8 +114,9 @@ class KnowledgeGraphBuilder:
                     weight=1.0,
                 )
 
-            # Methods -> Paper PROPOSES Method
-            for method_name in mined["methods"]:
+            # Top signature Methods per paper (up to 3) -> Paper PROPOSES Method
+            top_methods = _prioritize_entities(mined["methods"], priority_context, max_count=3)
+            for method_name in top_methods:
                 method_node_id = _slugify_id("method", method_name)
                 if not g.has_node(method_node_id):
                     g.add_node(
@@ -117,8 +139,9 @@ class KnowledgeGraphBuilder:
                     weight=1.5,
                 )
 
-            # Datasets -> Paper EVALUATES_ON Dataset
-            for dataset_name in mined["datasets"]:
+            # Top Datasets per paper (up to 2) -> Paper EVALUATES_ON Dataset
+            top_datasets = _prioritize_entities(mined["datasets"], priority_context, max_count=2)
+            for dataset_name in top_datasets:
                 dataset_node_id = _slugify_id("dataset", dataset_name)
                 if not g.has_node(dataset_node_id):
                     g.add_node(
@@ -141,8 +164,9 @@ class KnowledgeGraphBuilder:
                     weight=1.2,
                 )
 
-            # Metrics -> Paper ACHIEVES Metric
-            for metric_name in mined["metrics"]:
+            # Top Metrics per paper (up to 2) -> Paper ACHIEVES Metric
+            top_metrics = _prioritize_entities(mined["metrics"], priority_context, max_count=2)
+            for metric_name in top_metrics:
                 metric_node_id = _slugify_id("metric", metric_name)
                 if not g.has_node(metric_node_id):
                     g.add_node(
@@ -192,7 +216,6 @@ class KnowledgeGraphBuilder:
         g = self.graph
         degrees = dict(g.degree())
 
-        # Determine which nodes pass the filter
         kept_node_ids: Set[str] = set()
         for node_id, attrs in g.nodes(data=True):
             deg = degrees.get(node_id, 0)
@@ -202,7 +225,6 @@ class KnowledgeGraphBuilder:
                 continue
             kept_node_ids.add(node_id)
 
-        # Compute query-active relevance scores if query or active_chunk_ids are provided
         has_active_prompt = bool((query and query.strip()) or active_chunk_ids)
         node_relevance: Dict[str, float] = {}
         active_node_ids: Set[str] = set()
@@ -221,7 +243,6 @@ class KnowledgeGraphBuilder:
                     cited_paper_ids.add(ch.paper_id)
                     active_chunks_text += " " + ch.text
                 else:
-                    # Extract paper_id prefix from chunk_id like "paper_hu2021_c1"
                     m = re.match(r"^(paper_[a-zA-Z0-9]+)_c\d+$", cid)
                     if m:
                         cited_paper_ids.add(m.group(1))
@@ -242,19 +263,15 @@ class KnowledgeGraphBuilder:
                 meta = attrs.get("metadata", {})
                 label_tokens = set(tokenize_scientific_text(label))
 
-                score = 0.15  # Baseline peripheral score
-                # Direct match on cited paper
+                score = 0.15
                 if ntype == "Paper" and meta.get("paper_id") in cited_paper_ids:
                     score = max(score, 0.95)
-                # Direct match on extracted entity label
                 if label in matched_entities:
                     score = max(score, 0.92)
-                # Token overlap between query and node label
                 if query_tokens and label_tokens:
                     overlap = len(query_tokens.intersection(label_tokens))
                     if overlap > 0:
                         score = max(score, min(0.95, 0.72 + 0.10 * overlap))
-                # Connected to a cited paper AND mentioned in active chunks
                 node_papers = set(meta.get("papers", []))
                 if node_papers.intersection(cited_paper_ids) and label.lower() in active_chunks_text.lower():
                     score = max(score, 0.85)
@@ -263,7 +280,6 @@ class KnowledgeGraphBuilder:
                 if score >= 0.70:
                     active_node_ids.add(node_id)
 
-            # Also illuminate 1-hop neighbors connecting two active nodes (e.g., shared Method/Dataset bridges)
             bridge_candidates: Set[str] = set()
             undirected = g.to_undirected()
             for nid in kept_node_ids:
@@ -330,4 +346,3 @@ class KnowledgeGraphBuilder:
 
 
 graph_builder = KnowledgeGraphBuilder()
-
