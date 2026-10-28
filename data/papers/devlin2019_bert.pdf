@@ -1,0 +1,117 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 5 0 R 6 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+7 0 obj
+<< /Length 1079 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Abstract]) Tj
+1 0 0 1 54 702 Tm
+(BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding) Tj
+1 0 0 1 54 669 Tm
+(Authors: Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova \(2019\)) Tj
+1 0 0 1 54 636 Tm
+(Abstract: We introduce a new language representation model called BERT, which stands) Tj
+1 0 0 1 54 621 Tm
+(for Bidirectional Encoder Representations from Transformers. Unlike recent language) Tj
+1 0 0 1 54 606 Tm
+(representation models, BERT is designed to pre-train deep bidirectional) Tj
+1 0 0 1 54 591 Tm
+(representations from unlabeled text by jointly conditioning on both left and right) Tj
+1 0 0 1 54 576 Tm
+(context in all layers.) Tj
+1 0 0 1 54 543 Tm
+(As a result, the pre-trained BERT model can be fine-tuned with just one additional) Tj
+1 0 0 1 54 528 Tm
+(output layer to create state-of-the-art models for a wide range of tasks, such as) Tj
+1 0 0 1 54 513 Tm
+(question answering and language inference, without substantial task-specific) Tj
+1 0 0 1 54 498 Tm
+(architecture modifications.) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 951 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Masked Language Modeling & Next Sentence Prediction]) Tj
+1 0 0 1 54 702 Tm
+(3.1 Pre-training BERT: Building on the Transformer encoder architecture proposed by) Tj
+1 0 0 1 54 687 Tm
+(Vaswani et al. \(2017\), we pre-train BERT using two unsupervised tasks: Masked) Tj
+1 0 0 1 54 672 Tm
+(Language Modeling \(MLM\) and Next Sentence Prediction \(NSP\). In Masked LM, we) Tj
+1 0 0 1 54 657 Tm
+(randomly mask 15% of all WordPiece tokens in each sequence and predict the masked) Tj
+1 0 0 1 54 642 Tm
+(tokens.) Tj
+1 0 0 1 54 609 Tm
+(For the 15% of tokens selected for masking, we replace the token with the [MASK]) Tj
+1 0 0 1 54 594 Tm
+(token 80% of the time, a random token 10% of the time, and the unchanged token 10%) Tj
+1 0 0 1 54 579 Tm
+(of the time. Next Sentence Prediction trains a binary classifier to determine) Tj
+1 0 0 1 54 564 Tm
+(whether sentence B actually follows sentence A in the pre-training corpus.) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Length 576 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([GLUE & SQuAD Benchmark Results]) Tj
+1 0 0 1 54 702 Tm
+(4 Experiments: BERT obtains new state-of-the-art results on eleven natural language) Tj
+1 0 0 1 54 687 Tm
+(processing tasks. It pushes the GLUE benchmark score to 80.5% \(7.7% point absolute) Tj
+1 0 0 1 54 672 Tm
+(improvement\), MultiNLI accuracy to 86.7% \(4.6% absolute improvement\), SQuAD v1.1) Tj
+1 0 0 1 54 657 Tm
+(question answering Test F1 to 93.2 \(1.5 point absolute improvement\), and SQuAD v2.0) Tj
+1 0 0 1 54 642 Tm
+(Test F1 to 83.1 \(5.1 point absolute improvement\).) Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000203 00000 n 
+0000000329 00000 n 
+0000000455 00000 n 
+0000000581 00000 n 
+0000001712 00000 n 
+0000002714 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+3341
+%%EOF

@@ -26,12 +26,12 @@ description: "Task list for Core Grounded Literature Research Platform implement
 
 **Purpose**: Core data layer, database persistence, and API routing infrastructure that MUST be complete before ANY user story can execute.
 
-- [ ] T006 [P] Implement Pydantic v2 core document and bounding-box data models (`BoundingBox`, `PaperMetadata`, `TextChunk`) with coordinate constraints `[page, x, y, width, height]` in `backend/models/paper.py`
-- [ ] T007 [P] Implement SQLite database connection manager, table creation migrations (`papers`, `paper_chunks`), and metadata repository methods in `backend/storage/db.py`
-- [ ] T008 [P] Implement local PDF file storage repository manager for persisting and serving binary document files in `backend/storage/file_store.py`
-- [ ] T009 [P] Initialize ChromaDB persistent client, collection setup (`scholar_chunks`), and 384-d dense embedding wrapper in `backend/rag/vector_store.py`
-- [ ] T010 Create FastAPI application entrypoint, CORS middleware, global exception handlers, and readiness healthcheck endpoint `GET /api/health` in `backend/main.py`
-- [ ] T011 Bundle seed collection of 5 high-impact open-access papers (*Attention Is All You Need, LoRA, BERT, RoFormer, FlashAttention*) into `data/papers/`
+- [x] T006 [P] Implement Pydantic v2 core document and bounding-box data models (`BoundingBox`, `PaperMetadata`, `TextChunk`) with coordinate constraints `[page, x, y, width, height]` in `backend/models/paper.py`
+- [x] T007 [P] Implement SQLite database connection manager, table creation migrations (`papers`, `paper_chunks`), and metadata repository methods in `backend/storage/db.py`
+- [x] T008 [P] Implement local PDF file storage repository manager for persisting and serving binary document files in `backend/storage/file_store.py`
+- [x] T009 [P] Initialize ChromaDB persistent client, collection setup (`scholar_chunks`), and 384-d dense embedding wrapper in `backend/rag/vector_store.py`
+- [x] T010 Create FastAPI application entrypoint, CORS middleware, global exception handlers, and readiness healthcheck endpoint `GET /api/health` in `backend/main.py`
+- [x] T011 Bundle seed collection of 5 high-impact open-access papers (*Attention Is All You Need, LoRA, BERT, RoFormer, FlashAttention*) into `data/papers/`
 
 **Checkpoint**: Core persistence and application foundation ready — User Story implementation can proceed.
 

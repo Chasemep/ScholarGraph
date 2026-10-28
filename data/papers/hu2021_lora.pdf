@@ -1,0 +1,139 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 5 0 R 6 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+7 0 obj
+<< /Length 1378 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Abstract]) Tj
+1 0 0 1 54 702 Tm
+(LoRA: Low-Rank Adaptation of Large Language Models) Tj
+1 0 0 1 54 669 Tm
+(Authors: Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li,) Tj
+1 0 0 1 54 654 Tm
+(Shean Wang, Lu Wang, Weizhu Chen \(2021\)) Tj
+1 0 0 1 54 621 Tm
+(Abstract: An important paradigm of natural language processing consists of) Tj
+1 0 0 1 54 606 Tm
+(large-scale pre-training on general domain data and adaptation to particular tasks) Tj
+1 0 0 1 54 591 Tm
+(or domains. As we pre-train larger models, full fine-tuning, which retrains all) Tj
+1 0 0 1 54 576 Tm
+(model parameters, becomes less feasible. Using GPT-3 175B as an example, deploying) Tj
+1 0 0 1 54 561 Tm
+(independent instances of fine-tuned models, each with 175B parameters, is) Tj
+1 0 0 1 54 546 Tm
+(prohibitively expensive.) Tj
+1 0 0 1 54 513 Tm
+(We propose Low-Rank Adaptation, or LoRA, which freezes the pre-trained model weights) Tj
+1 0 0 1 54 498 Tm
+(and injects trainable rank decomposition matrices into each layer of the Transformer) Tj
+1 0 0 1 54 483 Tm
+(architecture, greatly reducing the number of trainable parameters for downstream) Tj
+1 0 0 1 54 468 Tm
+(tasks. Compared to GPT-3 175B fine-tuned with Adam, LoRA can reduce the number of) Tj
+1 0 0 1 54 453 Tm
+(trainable parameters by 10,000 times and the GPU memory requirement by 3-fold.) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 1402 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Low-Rank Parameterized Update Matrices]) Tj
+1 0 0 1 54 702 Tm
+(4.1 Low-Rank Parameterized Update Matrices: A neural network contains many dense) Tj
+1 0 0 1 54 687 Tm
+(layers which perform matrix multiplication. The weight matrices in these layers) Tj
+1 0 0 1 54 672 Tm
+(typically have full-rank. When adapting to a specific task, pre-trained language) Tj
+1 0 0 1 54 657 Tm
+(models have a low intrinsic dimension and can still learn efficiently despite a) Tj
+1 0 0 1 54 642 Tm
+(random projection to a smaller subspace.) Tj
+1 0 0 1 54 609 Tm
+(For a pre-trained weight matrix W_0 in R^\(d x k\), we constrain its update by) Tj
+1 0 0 1 54 594 Tm
+(representing the latter with a low-rank decomposition W_0 + Delta W = W_0 + B A,) Tj
+1 0 0 1 54 579 Tm
+(where B in R^\(d x r\), A in R^\(r x k\), and the rank r << min\(d, k\). During training,) Tj
+1 0 0 1 54 564 Tm
+(W_0 is frozen and does not receive gradient updates, while A and B contain trainable) Tj
+1 0 0 1 54 549 Tm
+(parameters.) Tj
+1 0 0 1 54 516 Tm
+(We use a random Gaussian initialization for A and zero for B, so Delta W = B A is) Tj
+1 0 0 1 54 501 Tm
+(zero at the beginning of training. Unlike Adapters, LoRA introduces zero additional) Tj
+1 0 0 1 54 486 Tm
+(inference latency because the trainable matrices B A can be explicitly merged with) Tj
+1 0 0 1 54 471 Tm
+(the frozen weights W_0 during deployment.) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Length 875 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Empirical Evaluation on GLUE and WikiSQL]) Tj
+1 0 0 1 54 702 Tm
+(5 Empirical Experiments: We evaluate the downstream task performance of LoRA on) Tj
+1 0 0 1 54 687 Tm
+(RoBERTa, DeBERTa, GPT-2, and GPT-3 175B across the GLUE benchmark, WikiSQL, and) Tj
+1 0 0 1 54 672 Tm
+(SAMSum datasets. In the Transformer architecture, we follow Vaswani et al. \(2017\)) Tj
+1 0 0 1 54 657 Tm
+(and apply LoRA to the Self-Attention projection matrices W_q and W_v.) Tj
+1 0 0 1 54 624 Tm
+(On GPT-3 175B, LoRA matches or exceeds the full fine-tuning baseline on WikiSQL) Tj
+1 0 0 1 54 609 Tm
+(\(achieving 74.0% accuracy\) and MultiNLI \(achieving 91.7% accuracy\) while updating) Tj
+1 0 0 1 54 594 Tm
+(only 4.7M parameters compared to 175,255M parameters in full fine-tuning, reducing) Tj
+1 0 0 1 54 579 Tm
+(VRAM memory consumption from 1.2 TB to 350 GB.) Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000203 00000 n 
+0000000329 00000 n 
+0000000455 00000 n 
+0000000581 00000 n 
+0000002011 00000 n 
+0000003465 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+4391
+%%EOF

@@ -1,0 +1,121 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 5 0 R 6 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+7 0 obj
+<< /Length 1164 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Abstract]) Tj
+1 0 0 1 54 702 Tm
+(FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness) Tj
+1 0 0 1 54 669 Tm
+(Authors: Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Re \(2022\)) Tj
+1 0 0 1 54 636 Tm
+(Abstract: Transformers are slow and memory-hungry on long sequences, since the time) Tj
+1 0 0 1 54 621 Tm
+(and memory complexity of self-attention are quadratic in sequence length.) Tj
+1 0 0 1 54 606 Tm
+(Approximate attention methods have attempted to address this problem by trading off) Tj
+1 0 0 1 54 591 Tm
+(model quality to reduce the compute complexity, but often do not achieve wall-clock) Tj
+1 0 0 1 54 576 Tm
+(speedup.) Tj
+1 0 0 1 54 543 Tm
+(We argue that a missing principle is making attention algorithms IO-aware-that is,) Tj
+1 0 0 1 54 528 Tm
+(carefully accounting for reads and writes between levels of GPU memory. We propose) Tj
+1 0 0 1 54 513 Tm
+(FlashAttention, an IO-aware exact attention algorithm that uses tiling to reduce the) Tj
+1 0 0 1 54 498 Tm
+(number of memory reads/writes between GPU high bandwidth memory \(HBM\) and GPU) Tj
+1 0 0 1 54 483 Tm
+(on-chip SRAM.) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 1100 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([IO-Aware Tiling & Online Softmax Recomputation]) Tj
+1 0 0 1 54 702 Tm
+(3 FlashAttention Algorithm: Standard Self-Attention \(Vaswani et al., 2017\)) Tj
+1 0 0 1 54 687 Tm
+(materializes the N x N attention matrix S = Q K^T and P = softmax\(S\) in slow GPU) Tj
+1 0 0 1 54 672 Tm
+(High Bandwidth Memory \(HBM\), requiring O\(N^2\) memory accesses. FlashAttention splits) Tj
+1 0 0 1 54 657 Tm
+(inputs Q, K, V into blocks, loads them from HBM into fast on-chip SRAM, and computes) Tj
+1 0 0 1 54 642 Tm
+(exact attention using online softmax scaling without ever materializing the) Tj
+1 0 0 1 54 627 Tm
+(intermediate N x N attention matrix in HBM.) Tj
+1 0 0 1 54 594 Tm
+(During the backward pass, by storing the output O and the softmax normalization) Tj
+1 0 0 1 54 579 Tm
+(statistics \(m, l\) in HBM, FlashAttention recomputes the attention blocks on-chip in) Tj
+1 0 0 1 54 564 Tm
+(SRAM, reducing HBM memory complexity from O\(N^2\) to linear O\(N\) in sequence length N) Tj
+1 0 0 1 54 549 Tm
+(while producing the exact same mathematical output as standard attention.) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Length 532 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Wall-Clock Speedup & Benchmark Results]) Tj
+1 0 0 1 54 702 Tm
+(4 Empirical Validation: FlashAttention trains BERT-large \(Devlin et al., 2019\) 15%) Tj
+1 0 0 1 54 687 Tm
+(faster than the MLPerf 1.1 training speed record, speeds up GPT-2 training by 3x) Tj
+1 0 0 1 54 672 Tm
+(over HuggingFace and 1.7x over Megatron-LM on WikiText-103, and improves long-range) Tj
+1 0 0 1 54 657 Tm
+(arena \(LRA\) Path-X accuracy to 61.4% by scaling context length to 16K and 64K) Tj
+1 0 0 1 54 642 Tm
+(tokens.) Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000203 00000 n 
+0000000329 00000 n 
+0000000455 00000 n 
+0000000581 00000 n 
+0000001797 00000 n 
+0000002949 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+3532
+%%EOF

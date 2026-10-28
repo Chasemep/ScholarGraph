@@ -1,0 +1,143 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 5 0 R 6 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+7 0 obj
+<< /Length 1248 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Abstract]) Tj
+1 0 0 1 54 702 Tm
+(Attention Is All You Need) Tj
+1 0 0 1 54 669 Tm
+(Authors: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,) Tj
+1 0 0 1 54 654 Tm
+(Aidan N. Gomez, Lukasz Kaiser, Illia Polosukhin \(2017\)) Tj
+1 0 0 1 54 621 Tm
+(Abstract: The dominant sequence transduction models are based on complex recurrent) Tj
+1 0 0 1 54 606 Tm
+(or convolutional neural networks that include an encoder and a decoder. The best) Tj
+1 0 0 1 54 591 Tm
+(performing models also connect the encoder and decoder through an attention) Tj
+1 0 0 1 54 576 Tm
+(mechanism. We propose a new simple network architecture, the Transformer, based) Tj
+1 0 0 1 54 561 Tm
+(solely on attention mechanisms, dispensing with recurrence and convolutions) Tj
+1 0 0 1 54 546 Tm
+(entirely.) Tj
+1 0 0 1 54 513 Tm
+(Experiments on two machine translation tasks show these models to be superior in) Tj
+1 0 0 1 54 498 Tm
+(quality while being more parallelizable and requiring significantly less time to) Tj
+1 0 0 1 54 483 Tm
+(train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation) Tj
+1 0 0 1 54 468 Tm
+(task, improving over the existing best results, including ensembles, by over 2 BLEU.) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Length 1349 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Model Architecture & Scaled Dot-Product Attention]) Tj
+1 0 0 1 54 702 Tm
+(3.2 Attention: An attention function can be described as mapping a query and a set) Tj
+1 0 0 1 54 687 Tm
+(of key-value pairs to an output, where the query, keys, values, and output are all) Tj
+1 0 0 1 54 672 Tm
+(vectors. We call our particular attention Scaled Dot-Product Attention. The input) Tj
+1 0 0 1 54 657 Tm
+(consists of queries and keys of dimension d_k, and values of dimension d_v.) Tj
+1 0 0 1 54 624 Tm
+(We compute the dot products of the query with all keys, divide each by the square) Tj
+1 0 0 1 54 609 Tm
+(root of d_k \(1 / sqrt\(d_k\) scaling factor\), and apply a softmax function to obtain) Tj
+1 0 0 1 54 594 Tm
+(the weights on the values. For large values of d_k, the dot products grow large in) Tj
+1 0 0 1 54 579 Tm
+(magnitude, pushing the softmax function into regions where it has extremely small) Tj
+1 0 0 1 54 564 Tm
+(gradients.) Tj
+1 0 0 1 54 531 Tm
+(Multi-Head Attention allows the model to jointly attend to information from) Tj
+1 0 0 1 54 516 Tm
+(different representation subspaces at different positions. With a single attention) Tj
+1 0 0 1 54 501 Tm
+(head, averaging inhibits this. In this work we employ h = 8 parallel attention) Tj
+1 0 0 1 54 486 Tm
+(layers, or heads, with d_k = d_v = d_model / h = 64.) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Length 1254 >>
+stream
+BT
+/F1 11 Tf
+1 0 0 1 54 730 Tm
+([Positional Encoding & Experimental Results]) Tj
+1 0 0 1 54 702 Tm
+(3.5 Positional Encoding: Since our model contains no recurrence and no convolution,) Tj
+1 0 0 1 54 687 Tm
+(in order for the model to make use of the order of the sequence, we must inject some) Tj
+1 0 0 1 54 672 Tm
+(information about the relative or absolute position of the tokens in the sequence.) Tj
+1 0 0 1 54 657 Tm
+(We use sine and cosine functions of different frequencies added to the input) Tj
+1 0 0 1 54 642 Tm
+(embeddings.) Tj
+1 0 0 1 54 609 Tm
+(5.1 Machine Translation Results: On the WMT 2014 English-to-German translation task,) Tj
+1 0 0 1 54 594 Tm
+(the big Transformer model \(Transformer big\) outperforms the best previously reported) Tj
+1 0 0 1 54 579 Tm
+(models including ensembles by more than 2.0 BLEU, establishing a new) Tj
+1 0 0 1 54 564 Tm
+(state-of-the-art BLEU score of 28.4 after training for 3.5 days on 8 P100 GPUs.) Tj
+1 0 0 1 54 531 Tm
+(On the WMT 2014 English-to-French translation task, our big model achieves a BLEU) Tj
+1 0 0 1 54 516 Tm
+(score of 41.8, outperforming all of the previously published single models, at less) Tj
+1 0 0 1 54 501 Tm
+(than 1/4 the training cost of the previous state-of-the-art model.) Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000133 00000 n 
+0000000203 00000 n 
+0000000329 00000 n 
+0000000455 00000 n 
+0000000581 00000 n 
+0000001881 00000 n 
+0000003282 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+4588
+%%EOF
