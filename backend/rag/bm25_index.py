@@ -11,6 +11,11 @@ STOPWORDS = {
     "has", "have", "in", "is", "it", "its", "of", "on", "or", "that",
     "the", "their", "there", "these", "this", "to", "was", "were",
     "which", "will", "with", "we", "our", "can", "into", "such",
+    # Conversational / prompt meta-words that should not dilute scientific keyword matching
+    "explain", "compare", "comparison", "describe", "summarize", "corpus",
+    "paper", "papers", "propose", "proposes", "adapt", "adapts", "evaluate",
+    "evaluates", "how", "what", "why", "where", "when", "does", "do", "did",
+    "each", "both", "all", "versus", "vs", "between", "across", "used", "using",
 }
 
 
@@ -18,7 +23,6 @@ def tokenize_scientific_text(text: str) -> List[str]:
     """Tokenize scientific text preserving hyphenated terms, alphanumeric symbols, and acronyms."""
     if not text:
         return []
-    # Lowercase and extract alphanumeric/hyphen/underscore tokens (e.g. "gpt-3", "d_k", "10,000" -> "10000")
     normalized = re.sub(r"(\d),(\d)", r"\1\2", text.lower())
     raw_tokens = re.findall(r"[a-z0-9]+(?:[-_][a-z0-9]+)*", normalized)
     return [tok for tok in raw_tokens if tok not in STOPWORDS and len(tok) > 1]
@@ -44,7 +48,6 @@ class BM25IndexManager:
             tokenize_scientific_text(f"{c.paper_title or ''} {c.section} {c.text}")
             for c in self.chunks
         ]
-        # Guard against all-empty token lists
         if any(len(tokens) > 0 for tokens in self.tokenized_corpus):
             self.bm25 = BM25Okapi(self.tokenized_corpus)
         else:
@@ -91,4 +94,3 @@ class BM25IndexManager:
 
 
 bm25_index = BM25IndexManager()
-

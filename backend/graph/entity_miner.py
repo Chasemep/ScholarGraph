@@ -270,6 +270,7 @@ class ScientificEntityMiner:
 
     def __init__(self, use_spacy_ner: bool = True) -> None:
         self.use_spacy_ner = use_spacy_ner
+        self._paper_cache: Dict[tuple[str, int], Dict[str, Any]] = {}
 
     def extract_from_text(self, text: str) -> Dict[str, List[str]]:
         """Extract Methods, Datasets, Metrics, and cited paper IDs from a single text string."""
@@ -313,6 +314,10 @@ class ScientificEntityMiner:
         chunks: List[TextChunk],
     ) -> Dict[str, Any]:
         """Aggregate all extracted entities and cross-citations across a paper and its chunks."""
+        cache_key = (paper.id, len(chunks))
+        if cache_key in self._paper_cache:
+            return self._paper_cache[cache_key]
+
         methods: Set[str] = set()
         datasets: Set[str] = set()
         metrics: Set[str] = set()
@@ -329,7 +334,7 @@ class ScientificEntityMiner:
             if cid != paper.id:
                 cited_paper_ids.add(cid)
 
-        return {
+        result = {
             "paper_id": paper.id,
             "title": paper.title,
             "authors": list(paper.authors),
@@ -339,6 +344,8 @@ class ScientificEntityMiner:
             "metrics": sorted(metrics),
             "cited_paper_ids": sorted(cited_paper_ids),
         }
+        self._paper_cache[cache_key] = result
+        return result
 
 
 entity_miner = ScientificEntityMiner()

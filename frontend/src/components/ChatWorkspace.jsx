@@ -9,13 +9,13 @@ const SUGGESTED_PROMPTS = [
 ]
 
 /**
- * Parses inline citation markers like [paper_hu2021, Page 4] and turns them into
- * interactive buttons linked to the corresponding CitationToken object.
+ * Parses inline citation markers like [paper_hu2021, Page 4] or [paper_hu2021, Page 4, 9]
+ * and turns them into interactive buttons linked to the corresponding CitationToken object.
  */
 function renderAnswerWithCitations(answerText, citations = [], onSelectCitation) {
   if (!answerText) return null
 
-  const tokenRegex = /\[([a-zA-Z0-9_-]+),\s*Page\s*(\d+)\]/g
+  const tokenRegex = /\[([a-zA-Z0-9_-]+),\s*Pages?\s*([\d,\s]+)\]/gi
   const parts = []
   let lastIndex = 0
   let match
@@ -25,31 +25,36 @@ function renderAnswerWithCitations(answerText, citations = [], onSelectCitation)
       parts.push(answerText.slice(lastIndex, match.index))
     }
     const paperId = match[1]
-    const pageNum = parseInt(match[2], 10)
+    const pageNums = match[2]
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !Number.isNaN(n))
 
-    const matchedCitation =
-      citations.find((c) => c.paper_id === paperId && Number(c.page) === pageNum) ||
-      citations.find((c) => c.paper_id === paperId) ||
-      citations[0]
+    pageNums.forEach((pageNum, idx) => {
+      const matchedCitation =
+        citations.find((c) => c.paper_id === paperId && Number(c.page) === pageNum) ||
+        citations.find((c) => c.paper_id === paperId) ||
+        citations[0]
 
-    parts.push(
-      <button
-        key={`${paperId}-${pageNum}-${match.index}`}
-        type="button"
-        onClick={() => matchedCitation && onSelectCitation(matchedCitation)}
-        className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/40 hover:bg-sky-400/30 hover:border-sky-300 transition cursor-pointer align-baseline shadow-sm"
-        title={
-          matchedCitation
-            ? `Click to jump to ${matchedCitation.paper_title} — Page ${pageNum} & highlight source passage`
-            : `Jump to ${paperId}, Page ${pageNum}`
-        }
-      >
-        <MapPin className="w-3 h-3 text-amber-300 shrink-0" />
-        <span>
-          {paperId.replace(/^paper_/, '')} · p.{pageNum}
-        </span>
-      </button>
-    )
+      parts.push(
+        <button
+          key={`${paperId}-${pageNum}-${match.index}-${idx}`}
+          type="button"
+          onClick={() => matchedCitation && onSelectCitation(matchedCitation)}
+          className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/40 hover:bg-sky-400/30 hover:border-sky-300 transition cursor-pointer align-baseline shadow-sm"
+          title={
+            matchedCitation
+              ? `Click to jump to ${matchedCitation.paper_title} — Page ${pageNum} & highlight source passage`
+              : `Jump to ${paperId}, Page ${pageNum}`
+          }
+        >
+          <MapPin className="w-3 h-3 text-amber-300 shrink-0" />
+          <span>
+            {paperId.replace(/^paper_/, '')} · p.{pageNum}
+          </span>
+        </button>
+      )
+    })
 
     lastIndex = tokenRegex.lastIndex
   }

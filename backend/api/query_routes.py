@@ -43,7 +43,11 @@ def extract_seed_chunks_from_pdf(paper_spec: dict, pdf_path: Path) -> tuple[List
             page_w = float(page.width or 612.0)
             page_h = float(page.height or 792.0)
 
-            words = page.extract_words(keep_blank_chars=False)
+            words = page.extract_words(
+                x_tolerance=1.5,
+                y_tolerance=3.0,
+                keep_blank_chars=False,
+            )
             if not words:
                 continue
 
@@ -146,7 +150,7 @@ def ensure_corpus_indexed(force_reingest: bool = False) -> None:
     """Ensure SQLite, ChromaDB, and in-memory BM25 index are populated and synchronized."""
     existing_papers = db.list_papers()
     if force_reingest or not existing_papers:
-        seed_paths = ensure_seed_pdfs(force_arxiv_download=force_reingest)
+        seed_paths = ensure_seed_pdfs(force_arxiv_download=False)
         path_by_name = {p.name: p for p in seed_paths}
         all_new_chunks: List[TextChunk] = []
 
@@ -197,14 +201,14 @@ def ensure_corpus_indexed(force_reingest: bool = False) -> None:
 
 
 @router.get("/documents", response_model=List[PaperMetadata])
-async def list_documents() -> List[PaperMetadata]:
+def list_documents() -> List[PaperMetadata]:
     """List all indexed scientific papers in the repository."""
     ensure_corpus_indexed()
     return db.list_papers()
 
 
 @router.get("/documents/{paper_id}/pdf")
-async def stream_paper_pdf(paper_id: str) -> FileResponse:
+def stream_paper_pdf(paper_id: str) -> FileResponse:
     """Stream the binary PDF file for a given paper_id to the PDF.js reader."""
     ensure_corpus_indexed()
     paper = db.get_paper(paper_id)
@@ -224,7 +228,7 @@ async def stream_paper_pdf(paper_id: str) -> FileResponse:
 
 
 @router.delete("/documents/{paper_id}")
-async def delete_document(paper_id: str) -> dict:
+def delete_document(paper_id: str) -> dict:
     """Delete an indexed paper and its chunks from SQLite, ChromaDB, and BM25."""
     paper = db.get_paper(paper_id)
     if not paper:
@@ -237,7 +241,7 @@ async def delete_document(paper_id: str) -> dict:
 
 
 @router.post("/query", response_model=QueryResponse)
-async def query_literature(request: QueryRequest) -> QueryResponse:
+def query_literature(request: QueryRequest) -> QueryResponse:
     """Execute Hybrid BM25 + ChromaDB retrieval, RRF fusion, Cross-Encoder re-ranking, and grounded synthesis."""
     ensure_corpus_indexed()
 
@@ -254,11 +258,18 @@ async def query_literature(request: QueryRequest) -> QueryResponse:
         paper_ids=request.paper_ids,
     )
 
+    # Step 2: Reciprocal Rank Fusion (k=60) + Cross-Encoder Re-Ranking
+    ql = request.query.lower()
+    effective_top_k = (
+        max(request.top_k, 8)
+        if any(kw in ql for kw in ["each paper", "compare", "corpus", "all papers"])
+        else request.top_k
+    )
     top_ranked = reranker.fuse_and_rerank(
         query=request.query,
         bm25_results=bm25_hits,
         vector_results=vector_hits,
-        top_n=request.top_k,
+        top_n=effective_top_k,
     )
     t_retrieval_ms = round((time.perf_counter() - t0) * 1000.0, 2)
 

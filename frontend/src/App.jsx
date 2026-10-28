@@ -40,17 +40,20 @@ export default function App() {
 
   const loadWorkspaceData = async () => {
     try {
-      const [docs, graphRes] = await Promise.all([
-        fetchDocuments(),
-        fetchKnowledgeGraph({ minDegree: 1 }),
-      ])
+      const docs = await fetchDocuments()
       setPapers(docs)
-      setGraphData(graphRes)
       if (docs.length > 0 && !activePaper) {
         setActivePaper(docs[0])
       }
     } catch (err) {
-      console.error('Failed to load workspace data:', err)
+      console.error('Failed to load documents:', err)
+    }
+
+    try {
+      const graphRes = await fetchKnowledgeGraph({ minDegree: 1 })
+      setGraphData(graphRes)
+    } catch (err) {
+      console.error('Failed to load knowledge graph:', err)
     }
   }
 
