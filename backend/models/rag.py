@@ -48,6 +48,10 @@ class QueryResponse(BaseModel):
         ..., description="'success' when grounded in retrieved chunks, 'insufficient_context' when refused"
     )
     citations: List[CitationToken] = Field(default_factory=list)
+    suggested_followups: List[str] = Field(
+        default_factory=list,
+        description="Clarifying follow-up prompts suggested when context is insufficient or ambiguous",
+    )
     model_used: str = Field(
         ..., description="Model or guardrail identifier (e.g., 'gemini-2.0-flash', 'extractive-fallback', 'deterministic-guardrail')"
     )

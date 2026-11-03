@@ -9,7 +9,63 @@ from backend.models.paper import TextChunk
 from backend.models.rag import CitationToken
 from backend.rag.bm25_index import tokenize_scientific_text
 
-REFUSAL_MESSAGE = "The ingested literature does not contain sufficient evidence to answer this query."
+def generate_clarifying_refusal(
+    query: str,
+    history: Optional[List[Any]] = None,
+    ranked_candidates: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Build a helpful refusal explaining why context was insufficient and asking targeted follow-up questions."""
+    from backend.storage.db import db
+
+    papers = db.list_papers()
+    p_titles = [p.title for p in papers[:4]]
+    prior_citations: List[str] = []
+    if history:
+        for turn in reversed(history):
+            if getattr(turn, "role", "") == "assistant" and getattr(turn, "paper_ids", None):
+                prior_citations = list(turn.paper_ids)
+                break
+
+    q_lower = query.lower()
+    needs_model_spec = any(w in q_lower for w in ["model", "models", "version", "variants", "equations", "formulas"])
+    suggestions: List[str] = []
+
+    if prior_citations:
+        cited_papers = [p for p in papers if p.id in set(prior_citations)]
+        cited_names = [p.title.split("(")[0].strip() for p in cited_papers[:3]]
+        if needs_model_spec:
+            suggestions.append(f"Could you specify if you are asking about the {len(cited_names)} models from the previous answer ({', '.join(cited_names)})?")
+            suggestions.append("Give me just the governing equations for the 3 Cucker-Smale models")
+        else:
+            suggestions.append(f"Are you following up on the previously cited papers ({', '.join(cited_names)})?")
+    else:
+        if needs_model_spec:
+            suggestions.append("Which model(s) are you referring to? (e.g. Cucker-Smale flocking models, Transformer attention architectures, or LoRA)")
+            suggestions.append("What are the differences between the models in the 3 Cucker-Smale papers?")
+        else:
+            suggestions.append("Could you clarify the topic or name the specific paper or method you are interested in?")
+
+    if p_titles and len(suggestions) < 3:
+        suggestions.append(f"Compare the models discussed in '{p_titles[0]}'")
+
+    explanation_lines = [
+        "I couldn't find sufficient context in your uploaded papers to answer this specific query with certainty."
+    ]
+    if needs_model_spec:
+        explanation_lines.append(
+            "It looks like your question refers to specific models or versions, but doesn't specify which ones or which paper(s) to look in."
+        )
+    explanation_lines.append("\n**Suggested follow-ups / clarifications:**")
+    for s in suggestions:
+        explanation_lines.append(f"• *{s}*")
+
+    return {
+        "answer": "\n\n".join(explanation_lines),
+        "status": "insufficient_context",
+        "citations": [],
+        "suggested_followups": suggestions,
+        "model_used": "deterministic-guardrail",
+    }
 
 SYSTEM_GROUNDING_PROMPT = """You are ScholarGraph, a grounded scientific literature research assistant.
 Rules:
@@ -285,12 +341,7 @@ class GroundedGenerator:
         """Generate a grounded answer and return status, answer, citations, and model_used."""
         guard_query = retrieval_query or query
         if not ranked_candidates or not _has_query_overlap(guard_query, ranked_candidates):
-            return {
-                "answer": REFUSAL_MESSAGE,
-                "status": "insufficient_context",
-                "citations": [],
-                "model_used": "deterministic-guardrail",
-            }
+            return generate_clarifying_refusal(query, history=history, ranked_candidates=ranked_candidates)
 
         valid_candidates = [
             c
@@ -298,12 +349,7 @@ class GroundedGenerator:
             if float(c.get("relevance_score", 0.0)) >= settings.min_relevance_threshold
         ]
         if not valid_candidates:
-            return {
-                "answer": REFUSAL_MESSAGE,
-                "status": "insufficient_context",
-                "citations": [],
-                "model_used": "deterministic-guardrail",
-            }
+            return generate_clarifying_refusal(query, history=history, ranked_candidates=ranked_candidates)
 
         citations = build_citation_tokens(valid_candidates)
         if api_key_override and api_key_override.strip() == "LOCAL_FALLBACK":
@@ -375,13 +421,19 @@ class GroundedGenerator:
             )
             try:
                 llm_text, used_model_name = self._call_gemini(user_prompt, effective_api_key)
-                if REFUSAL_MESSAGE.lower() in llm_text.lower() and len(llm_text) < 300:
-                    return {
-                        "answer": REFUSAL_MESSAGE,
-                        "status": "insufficient_context",
-                        "citations": [],
-                        "model_used": used_model_name,
-                    }
+                llm_lower = llm_text.lower()
+                is_refusal = (
+                    "insufficient evidence" in llm_lower
+                    or "does not contain sufficient" in llm_lower
+                    or "couldn't find relevant information" in llm_lower
+                )
+                if is_refusal:
+                    clarification = generate_clarifying_refusal(query, history=history, ranked_candidates=valid_candidates)
+                    clarification["model_used"] = used_model_name
+                    # If Gemini provided a helpful partial explanation alongside the refusal, prepend it
+                    if len(llm_text.strip()) > 100:
+                        clarification["answer"] = f"{llm_text.strip()}\n\n---\n**Suggested follow-ups / clarifications:**\n" + "\n".join(f"• *{s}*" for s in clarification["suggested_followups"])
+                    return clarification
                 valid_paper_ids = {c.paper_id for c in citations}
                 has_valid_citation = any(pid in llm_text for pid in valid_paper_ids)
                 if llm_text and has_valid_citation:
@@ -409,13 +461,8 @@ class GroundedGenerator:
                 pass
 
         extractive_answer = extractive_fallback_synthesis(query, valid_candidates)
-        if extractive_answer == REFUSAL_MESSAGE:
-            return {
-                "answer": REFUSAL_MESSAGE,
-                "status": "insufficient_context",
-                "citations": [],
-                "model_used": "deterministic-guardrail",
-            }
+        if "insufficient evidence" in extractive_answer.lower() or len(extractive_answer.strip()) < 30:
+            return generate_clarifying_refusal(query, history=history, ranked_candidates=valid_candidates)
 
         return {
             "answer": extractive_answer,

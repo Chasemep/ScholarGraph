@@ -250,7 +250,8 @@ COMPARATIVE_QUERY_REGEX = re.compile(
     r"\b(?:differen\w*|differ|compar\w*|contrast\w*|versus|vs\.?|distinguish\w*|similarit\w*|"
     r"relat\w* to each other|each (?:paper|model|approach|method|version|variant|one)|"
     r"every (?:paper|model|version|variant)|versions?|variants?|all (?:three|two|four|\d+)|"
-    r"the (?:two|three|four|five|\d+) (?:\S+ )?(?:papers|models|approaches|methods|variants|versions)|"
+    r"the (?:two|three|four|five|\d+)\b|"
+    r"(?:two|three|four|five|\d+)\s+(?:[\w-]+\s+){0,3}(?:papers|models|approaches|methods|variants|versions)|"
     r"between (?:the|these)|across)\b",
     re.IGNORECASE,
 )
@@ -262,9 +263,10 @@ FORMULA_QUERY_REGEX = re.compile(
 )
 
 FOLLOWUP_QUERY_REGEX = re.compile(
-    r"^(?:and|also|ok(?:ay)?|so|now|then|just|only|what about|how about|same|instead)\b|"
+    r"^(?:and|also|ok(?:ay)?|so|now|then|just|only|what about|how about|same|instead|give me|show me|tell me)\b|"
     r"\b(?:them|those|these|they|their|it|its|that|this one|the same|above|previous|earlier|you mentioned|"
-    r"each of them|each one|the formulas|the equations|the models|the papers)\b",
+    r"each of them|each one|the formulas|the equations|the models|the papers|nothing else)\b|"
+    r"\b(?:the|these|those)\s+(?:\d+|two|three|four|five)\b",
     re.IGNORECASE,
 )
 
@@ -290,7 +292,7 @@ def _is_followup_query(query: str, history: list) -> bool:
     if not history:
         return False
     q = (query or "").strip()
-    return bool(FOLLOWUP_QUERY_REGEX.search(q)) or len(q.split()) <= 7
+    return bool(FOLLOWUP_QUERY_REGEX.search(q)) or len(q.split()) <= 12
 
 
 def _is_boilerplate_chunk(chunk: TextChunk) -> bool:
@@ -556,6 +558,7 @@ def query_literature(request: QueryRequest) -> QueryResponse:
         answer=gen_out["answer"],
         status=gen_out["status"],
         citations=gen_out["citations"],
+        suggested_followups=gen_out.get("suggested_followups", []),
         model_used=gen_out["model_used"],
         retrieval_latency_ms=t_retrieval_ms,
         synthesis_latency_ms=t_synthesis_ms,

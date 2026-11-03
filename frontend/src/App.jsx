@@ -106,6 +106,7 @@ export default function App() {
         content: res.answer,
         status: res.status,
         citations: res.citations || [],
+        suggested_followups: res.suggested_followups || [],
         meta: {
           model_used: res.model_used,
           retrieval_latency_ms: res.retrieval_latency_ms,

@@ -225,9 +225,11 @@ export default function ChatWorkspace({
             const isExtractiveFallback = msg.meta?.model_used === 'extractive-fallback'
             const isInsufficient = msg.status === 'insufficient_context'
 
-            const displayedAnswer = isInsufficient
-              ? "I couldn't find relevant information in your uploaded papers to answer this question."
-              : msg.content
+            const displayedAnswer = msg.content || (
+              isInsufficient
+                ? "I couldn't find relevant information in your uploaded papers to answer this question."
+                : ""
+            )
 
             return (
               <article
@@ -282,6 +284,22 @@ export default function ChatWorkspace({
                   onSelectCitation={onSelectCitation}
                   registerPaperId={registerPaperId}
                 />
+
+                {/* Interactive Suggested Follow-Up Prompt Pills on Failure / Clarification */}
+                {msg.suggested_followups && msg.suggested_followups.length > 0 && (
+                  <div className="pt-2 flex flex-wrap gap-2">
+                    {msg.suggested_followups.map((sug, sIdx) => (
+                      <button
+                        key={`${msg.id}-sug-${sIdx}`}
+                        type="button"
+                        onClick={() => onSendQuery(sug)}
+                        className="text-left text-xs px-3 py-1.5 rounded-lg bg-[#6366f1]/10 text-[#a5b4fc] border border-[#6366f1]/30 hover:bg-[#6366f1]/20 hover:border-[#6366f1]/60 transition cursor-pointer"
+                      >
+                        💡 {sug}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Compact Verified Source Passages */}
                 {msg.citations && msg.citations.length > 0 && (
