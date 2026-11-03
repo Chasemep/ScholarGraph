@@ -51,7 +51,7 @@ export default function App() {
         setActivePaper(docs[0])
       }
     } catch (err) {
-      showToast(`Failed to load corpus documents: ${err.message}`, 'error')
+      showToast(`Failed to load papers: ${err.message}`, 'error')
     }
 
     try {
@@ -120,14 +120,14 @@ export default function App() {
         }
       }
     } catch (err) {
-      showToast(`Query execution error: ${err.message}`, 'error')
+      showToast(`Search error: ${err.message}`, 'error')
       setMessages((prev) => [
         ...prev,
         {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: `Error: ${err.message}`,
-          status: 'insufficient_context',
+          content: `Unable to complete search: ${err.message}`,
+          status: 'error',
           citations: [],
         },
       ])
@@ -187,33 +187,33 @@ export default function App() {
       }
       const freshGraph = await fetchKnowledgeGraph({ minDegree: 1 })
       setGraphData(freshGraph)
-      showToast(`Removed "${target?.title || paperId}" from corpus.`)
+      showToast(`Removed "${target?.title || paperId}" from your papers.`)
     } catch (err) {
       showToast(`Failed to delete paper: ${err.message}`, 'error')
     }
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 relative">
-      {/* Toast Notification Banner (T050) */}
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#09090b] text-[#f4f4f5] relative">
+      {/* Toast Notification Banner */}
       {toast && (
         <div
-          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-2.5 text-xs font-medium backdrop-blur-md transition ${
+          className={`fixed bottom-5 right-5 z-50 px-3.5 py-2.5 rounded-lg border shadow-2xl flex items-center gap-2.5 text-xs font-medium backdrop-blur-md transition ${
             toast.type === 'error'
-              ? 'bg-rose-950/90 border-rose-500/50 text-rose-200'
-              : 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200'
+              ? 'bg-rose-950/90 border-rose-500/40 text-rose-200'
+              : 'bg-[#18181b]/95 border-[#27272a] text-[#f4f4f5]'
           }`}
         >
           {toast.type === 'error' ? (
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
           ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-[#6366f1] shrink-0" />
           )}
           <span>{toast.message}</span>
           <button
             type="button"
             onClick={() => setToast(null)}
-            className="ml-2 text-slate-400 hover:text-white cursor-pointer"
+            className="ml-2 text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -229,6 +229,7 @@ export default function App() {
           setRightTab('pdf')
         }}
         onTogglePaperFilter={togglePaperFilter}
+        onClearPaperFilters={() => setSelectedPaperIds([])}
         onDeletePaper={handleDeletePaper}
         rightTab={rightTab}
         onChangeRightTab={setRightTab}
@@ -251,10 +252,10 @@ export default function App() {
         </div>
         <div className="lg:col-span-7 h-full min-h-0 overflow-hidden relative">
           {isWorkspaceLoading ? (
-            <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-slate-950 space-y-3 animate-pulse">
-              <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700" />
-              <div className="h-4 w-56 bg-slate-800 rounded" />
-              <div className="h-3 w-40 bg-slate-800/70 rounded" />
+            <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-[#09090b] space-y-3 animate-pulse">
+              <div className="w-10 h-10 rounded-lg bg-[#18181b] border border-[#27272a]" />
+              <div className="h-3.5 w-48 bg-[#18181b] rounded" />
+              <div className="h-2.5 w-32 bg-[#18181b]/70 rounded" />
             </div>
           ) : rightTab === 'graph' ? (
             <GraphCanvas
@@ -280,7 +281,7 @@ export default function App() {
         onClose={() => setIsUploadOpen(false)}
         onUploadComplete={() => {
           loadWorkspaceData()
-          showToast('PDF ingestion complete! Corpus and Knowledge Graph updated.')
+          showToast('PDF upload complete. Your papers and graph have been updated.')
         }}
       />
     </div>

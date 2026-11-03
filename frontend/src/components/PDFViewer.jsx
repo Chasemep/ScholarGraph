@@ -106,18 +106,18 @@ export default function PDFViewer({
     renderDimensions.width > 0
 
   return (
-    <div className="flex flex-col h-full bg-slate-950">
+    <div className="flex flex-col h-full bg-[#09090b]">
       {/* Reader Control Bar */}
-      <div className="px-4 py-2.5 border-b border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-2">
+      <div className="h-10 px-4 border-b border-[#27272a] bg-[#09090b] flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <FileText className="w-4 h-4 text-sky-400 shrink-0" />
+          <FileText className="w-3.5 h-3.5 text-[#6366f1] shrink-0" />
           <select
             value={activePaper?.id || ''}
             onChange={(e) => {
               const found = papers.find((p) => p.id === e.target.value)
               if (found && onSelectPaper) onSelectPaper(found)
             }}
-            className="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs text-slate-100 max-w-xs truncate focus:outline-none focus:border-sky-400"
+            className="bg-[#18181b] border border-[#27272a] rounded-md px-2.5 py-1 text-xs text-[#f4f4f5] max-w-xs truncate focus:outline-none focus:border-[#6366f1]"
           >
             {papers.map((p) => (
               <option key={p.id} value={p.id}>
@@ -128,85 +128,83 @@ export default function PDFViewer({
         </div>
 
         {/* Page Navigation & Zoom Controls */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-slate-800 rounded-md px-2 py-1 border border-slate-700">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-[#18181b] rounded-md px-2 py-0.5 border border-[#27272a]">
             <button
               type="button"
               onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
               disabled={pageNumber <= 1}
-              className="p-0.5 text-slate-300 hover:text-sky-400 disabled:text-slate-600 cursor-pointer"
+              className="p-0.5 text-[#a1a1aa] hover:text-[#f4f4f5] disabled:opacity-40 cursor-pointer"
               title="Previous Page"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <span className="text-xs font-mono text-slate-200 px-1.5">
-              Page {pageNumber} / {totalPages}
+            <span className="text-[11px] font-mono text-[#f4f4f5] px-1.5">
+              {pageNumber} / {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
               disabled={pageNumber >= totalPages}
-              className="p-0.5 text-slate-300 hover:text-sky-400 disabled:text-slate-600 cursor-pointer"
+              className="p-0.5 text-[#a1a1aa] hover:text-[#f4f4f5] disabled:opacity-40 cursor-pointer"
               title="Next Page"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-800 rounded-md px-2 py-1 border border-slate-700">
+          <div className="flex items-center gap-1 bg-[#18181b] rounded-md px-2 py-0.5 border border-[#27272a]">
             <button
               type="button"
               onClick={() => setScale((s) => Math.max(0.75, +(s - 0.15).toFixed(2)))}
-              className="p-0.5 text-slate-300 hover:text-sky-400 cursor-pointer"
+              className="p-0.5 text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
               title="Zoom Out"
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="text-xs font-mono text-slate-300 px-1">
+            <span className="text-[11px] font-mono text-[#a1a1aa] px-1">
               {Math.round(scale * 100)}%
             </span>
             <button
               type="button"
               onClick={() => setScale((s) => Math.min(2.2, +(s + 0.15).toFixed(2)))}
-              className="p-0.5 text-slate-300 hover:text-sky-400 cursor-pointer"
+              className="p-0.5 text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
               title="Zoom In"
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Active Provenance Banner */}
+      {/* Active Highlight Banner */}
       {showHighlight && (
-        <div className="px-4 py-1.5 bg-amber-500/15 border-b border-amber-400/40 flex items-center justify-between text-xs text-amber-200">
+        <div className="px-4 py-1.5 bg-[#18181b] border-b border-[#27272a] flex items-center justify-between text-xs text-[#f4f4f5]">
           <div className="flex items-center gap-2 truncate">
-            <Highlighter className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-            <span className="truncate">
-              Highlighting verified source in <strong>{activeCitation.section}</strong> — coords{' '}
-              <code className="font-mono text-[11px] text-amber-300">
-                [p.{activeCitation.bbox.page}, x={activeCitation.bbox.x}, y={activeCitation.bbox.y}, w={activeCitation.bbox.width}, h={activeCitation.bbox.height}]
-              </code>
+            <Highlighter className="w-3.5 h-3.5 text-[#6366f1] shrink-0" />
+            <span className="truncate text-[#a1a1aa]">
+              Highlighted citation on <strong className="text-[#f4f4f5]">Page {pageNumber}</strong>
+              {activeCitation.section ? ` (${activeCitation.section})` : ''}
             </span>
           </div>
         </div>
       )}
 
-      {/* PDF Canvas & Luminous Bounding-Box Overlay */}
+      {/* PDF Canvas & Bounding-Box Overlay */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto flex justify-center p-6 bg-slate-950"
+        className="flex-1 overflow-auto flex justify-center p-6 bg-[#09090b]"
       >
         {loadError ? (
-          <div className="self-center text-center space-y-2 p-6 rounded-xl bg-slate-900 border border-slate-800 max-w-md">
+          <div className="self-center text-center space-y-2 p-6 rounded-xl bg-[#18181b] border border-[#27272a] max-w-md">
             <p className="text-sm text-rose-400 font-medium">{loadError}</p>
-            <p className="text-xs text-slate-400">
-              Select a paper from the dropdown above to inspect its full text and bounding-box citations.
+            <p className="text-xs text-[#a1a1aa]">
+              Select a paper from the dropdown above to read its pages.
             </p>
           </div>
         ) : (
           <div
-            className="relative shadow-2xl border border-slate-800 bg-white self-start"
+            className="relative shadow-2xl border border-[#27272a] bg-white self-start"
             style={{
               width: renderDimensions.width || 'auto',
               height: renderDimensions.height || 'auto',
@@ -214,7 +212,7 @@ export default function PDFViewer({
           >
             <canvas ref={canvasRef} className="block" />
 
-            {/* Normalized [x, y, width, height] Luminous Bounding Box Overlay */}
+            {/* Highlight Overlay */}
             {showHighlight && (
               <div
                 data-testid="pdf-bbox-highlight"
@@ -225,7 +223,7 @@ export default function PDFViewer({
                   width: `${Math.min(100, activeCitation.bbox.width * 100 + 2)}%`,
                   height: `${Math.min(100, activeCitation.bbox.height * 100 + 1.5)}%`,
                 }}
-                className="pointer-events-none rounded-md bg-amber-300/35 border-2 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.75)] transition-all duration-300 animate-pulse"
+                className="pointer-events-none rounded-md bg-indigo-500/25 border-2 border-[#6366f1] shadow-[0_0_20px_rgba(99,102,241,0.55)] transition-all duration-300"
               />
             )}
           </div>
@@ -234,4 +232,3 @@ export default function PDFViewer({
     </div>
   )
 }
-

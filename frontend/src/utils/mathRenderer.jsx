@@ -19,7 +19,7 @@ function renderKatexToHtml(latexStr, displayMode = false) {
 }
 
 /**
- * Normalize bare LaTeX tokens (e.g., \frac{...}{...}, \dot{x}, \mathbb{R}^3, x_i)
+ * Normalize bare LaTeX tokens (e.g., \frac{...}{...}, \dot{x}, \mathbb{R}^3, \|x_i - x_j\|^2, x_i)
  * that may appear outside $...$ delimiters in extracted PDF snippets or LLM outputs.
  */
 function wrapBareLatexExpressions(text) {
@@ -29,10 +29,11 @@ function wrapBareLatexExpressions(text) {
   const mathSplitRegex = /(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\$[^$\n]+?\$|\\\([\s\S]+?\\\))/g
   const segments = text.split(mathSplitRegex)
 
-  const braceGroup = '(?:\\{(?:[^{}]|\\{[^{}]*\\})*\\})'
+  const braceGroup = '(?:\\{(?:[^{}]|\\{(?:[^{}]|\\{[^{}]*\\})*\\})*\\})'
   const bareCmdPattern = new RegExp(
-    `(\\\\(?:frac|dfrac|tfrac)${braceGroup}${braceGroup}(?:\\^[0-9a-zA-Z]+|_[0-9a-zA-Z]+)*|` +
-      `\\\\(?:sqrt|dot|ddot|hat|bar|tilde|vec|mathbb|mathcal|mathrm|mathbf|operatorname)${braceGroup}(?:\\^[0-9a-zA-Z]+|_[0-9a-zA-Z]+)*|` +
+    `(\\\\(?:frac|dfrac|tfrac)${braceGroup}${braceGroup}(?:\\^${braceGroup}|\\^[0-9a-zA-Z]+|_${braceGroup}|_[0-9a-zA-Z]+)*|` +
+      `\\\\(?:sqrt|dot|ddot|hat|bar|tilde|vec|mathbb|mathcal|mathrm|mathbf|operatorname)${braceGroup}(?:\\^${braceGroup}|\\^[0-9a-zA-Z]+|_${braceGroup}|_[0-9a-zA-Z]+)*|` +
+      `\\\\\\|[^|\\n]+?\\\\\\|(?:\\^${braceGroup}|\\^[0-9a-zA-Z]+|_${braceGroup}|_[0-9a-zA-Z]+)*|` +
       `\\\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|partial|nabla|sum|prod|int|cdot|times|pm|leq|geq|neq|approx|equiv|in|subset|subseteq|forall|exists|rightarrow|leftarrow|Rightarrow|mapsto)\\b(?:\\^${braceGroup}|\\^[0-9a-zA-Z]+|_${braceGroup}|_[0-9a-zA-Z]+)*)`,
     'g'
   )
@@ -72,7 +73,7 @@ function renderFormattedPlainSegment(text, keyPrefix) {
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
-        <strong key={`${keyPrefix}-b-${idx}`} className="font-semibold text-white">
+        <strong key={`${keyPrefix}-b-${idx}`} className="font-semibold text-[#f4f4f5]">
           {part.slice(2, -2)}
         </strong>
       )
@@ -81,7 +82,7 @@ function renderFormattedPlainSegment(text, keyPrefix) {
       return (
         <code
           key={`${keyPrefix}-c-${idx}`}
-          className="px-1.5 py-0.5 rounded bg-slate-900/90 text-sky-300 font-mono text-xs border border-slate-700/70"
+          className="px-1.5 py-0.5 rounded bg-[#18181b] text-[#a5b4fc] font-mono text-xs border border-[#27272a]"
         >
           {part.slice(1, -1)}
         </code>
@@ -115,7 +116,7 @@ export function renderMathSegment(rawText, keyPrefix = 'math') {
       return (
         <span
           key={`${keyPrefix}-dm-${idx}`}
-          className="block my-2 py-1.5 px-3 rounded-lg bg-slate-900/60 border border-slate-700/60 overflow-x-auto text-center text-slate-100"
+          className="block my-2.5 py-2 px-3.5 rounded-lg bg-[#18181b] border border-[#27272a] overflow-x-auto text-center text-[#f4f4f5]"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )
@@ -131,7 +132,7 @@ export function renderMathSegment(rawText, keyPrefix = 'math') {
       return (
         <span
           key={`${keyPrefix}-im-${idx}`}
-          className="inline-block mx-0.5 text-slate-100 align-baseline"
+          className="inline-block mx-0.5 text-[#f4f4f5] align-baseline"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )

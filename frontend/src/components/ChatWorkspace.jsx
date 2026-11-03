@@ -1,28 +1,86 @@
 import React, { useState } from 'react'
-import { Send, Sparkles, BookOpen, ShieldCheck, AlertTriangle, Clock, MapPin } from 'lucide-react'
+import { Send, BookOpen, AlertCircle, Info } from 'lucide-react'
 import { renderMathSegment } from '../utils/mathRenderer'
 
-const SUGGESTED_PROMPTS = [
-  'Compare the parameter efficiency and memory overhead of LoRA versus full fine-tuning.',
-  'How does Scaled Dot-Product Attention work and why is the 1/sqrt(d_k) scaling factor used?',
-  'How does FlashAttention reduce GPU HBM memory accesses from O(N^2) to O(N)?',
-  'Compare Rotary Position Embedding (RoPE) in RoFormer with sinusoidal positional encodings.',
-]
+/**
+ * Builds a deterministic 1-based reference number map (e.g. paper_cuckersmale_original -> 1)
+ * for all papers cited in an assistant response so inline superscript badges [1, p.2]
+ * match the numbered Verified Sources list.
+ */
+function buildPaperReferenceMap(answerText = '', citations = []) {
+  const map = new Map()
+  let nextIdx = 1
+
+  const registerPaperId = (rawId) => {
+    if (!rawId) return 1
+    const clean = rawId.trim()
+    const normalized = clean.startsWith('paper_') ? clean : `paper_${clean}`
+    const stripped = clean.replace(/^paper_/, '')
+
+    if (map.has(clean)) return map.get(clean)
+    if (map.has(normalized)) return map.get(normalized)
+    if (map.has(stripped)) return map.get(stripped)
+
+    const assigned = nextIdx++
+    map.set(clean, assigned)
+    map.set(normalized, assigned)
+    map.set(stripped, assigned)
+    return assigned
+  }
+
+  citations.forEach((c) => {
+    if (c?.paper_id) registerPaperId(c.paper_id)
+  })
+
+  const bracketRegex = /\[([a-zA-Z0-9_-]+),\s*(?:Pages?|p\.?)\s*(\d+(?:\s*,\s*(?:Pages?|p\.?)?\s*\d+)*)\]/gi
+  let match
+  while ((match = bracketRegex.exec(answerText)) !== null) {
+    registerPaperId(match[1])
+  }
+
+  return { registerPaperId }
+}
 
 /**
- * Parses inline citation markers like [paper_hu2021, Page 4], [paper_hu2021, Page 4, 9],
- * or [paper_cuckersmale_original, Page 2, Page 6] and turns them into interactive buttons,
+ * Parses inline citation markers like:
+ * - [paper_hu2021, Page 4]
+ * - [paper_cuckersmale_original, Page 2, Page 6]
+ * - cuckersmale_original · p.2
+ * and converts them into compact, clickable superscript badges (e.g. [1, p.2]),
  * while rendering all surrounding LaTeX math ($...$, $$...$$, \frac, x_i, etc.) via KaTeX.
  */
-function renderAnswerWithCitations(answerText, citations = [], onSelectCitation) {
+function renderAnswerWithCitations(answerText, citations = [], onSelectCitation, registerPaperId) {
   if (!answerText) return null
 
-  const tokenRegex = /\[([a-zA-Z0-9_-]+),\s*Pages?\s*(\d+(?:\s*,\s*(?:Pages?\s*)?\d+)*)\]/gi
+  const combinedCitationRegex =
+    /\[([a-zA-Z0-9_-]+),\s*(?:Pages?|p\.?)\s*(\d+(?:\s*,\s*(?:Pages?|p\.?)?\s*\d+)*)\]|(?:\b(paper_[a-zA-Z0-9_-]+|[a-zA-Z0-9]+_[a-zA-Z0-9_-]+)\s*·\s*p\.?\s*(\d+))/gi
+
   const parts = []
   let lastIndex = 0
   let match
 
-  while ((match = tokenRegex.exec(answerText)) !== null) {
+  const findMatchingCitationObj = (rawPaperId, pageNum) => {
+    const normalized = rawPaperId.startsWith('paper_') ? rawPaperId : `paper_${rawPaperId}`
+    const stripped = rawPaperId.replace(/^paper_/, '')
+    return (
+      citations.find(
+        (c) =>
+          (c.paper_id === rawPaperId ||
+            c.paper_id === normalized ||
+            c.paper_id?.replace(/^paper_/, '') === stripped) &&
+          Number(c.page) === pageNum
+      ) ||
+      citations.find(
+        (c) =>
+          c.paper_id === rawPaperId ||
+          c.paper_id === normalized ||
+          c.paper_id?.replace(/^paper_/, '') === stripped
+      ) ||
+      citations[0]
+    )
+  }
+
+  while ((match = combinedCitationRegex.exec(answerText)) !== null) {
     if (match.index > lastIndex) {
       const textSlice = answerText.slice(lastIndex, match.index)
       parts.push(
@@ -31,42 +89,43 @@ function renderAnswerWithCitations(answerText, citations = [], onSelectCitation)
         </React.Fragment>
       )
     }
-    const paperId = match[1]
-    const pageNums = (match[2].match(/\d+/g) || [])
+
+    const rawPaperId = match[1] || match[3]
+    const rawPagesStr = match[2] || match[4] || ''
+    const refNum = registerPaperId(rawPaperId)
+
+    const pageNums = (rawPagesStr.match(/\d+/g) || [])
       .map((s) => parseInt(s, 10))
       .filter((n) => !Number.isNaN(n))
 
     pageNums.forEach((pageNum, idx) => {
-      const matchedCitation =
-        citations.find((c) => c.paper_id === paperId && Number(c.page) === pageNum) ||
-        citations.find((c) => c.paper_id === paperId) ||
-        citations[0]
+      const matchedCitation = findMatchingCitationObj(rawPaperId, pageNum)
+      const resolvedPaperId =
+        matchedCitation?.paper_id ||
+        (rawPaperId.startsWith('paper_') ? rawPaperId : `paper_${rawPaperId}`)
 
       const citationPayload = matchedCitation
         ? { ...matchedCitation, page: pageNum }
-        : { paper_id: paperId, paper_title: paperId, page: pageNum, bbox: null }
+        : { paper_id: resolvedPaperId, paper_title: rawPaperId, page: pageNum, bbox: null }
 
       parts.push(
         <button
-          key={`${paperId}-${pageNum}-${match.index}-${idx}`}
+          key={`${rawPaperId}-${pageNum}-${match.index}-${idx}`}
           type="button"
           onClick={() => onSelectCitation(citationPayload)}
-          className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/40 hover:bg-sky-400/30 hover:border-sky-300 transition cursor-pointer align-baseline shadow-sm"
+          className="inline-flex items-center mx-0.5 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-[#6366f1]/15 text-[#818cf8] border border-[#6366f1]/30 hover:bg-[#6366f1]/25 hover:text-[#a5b4fc] hover:border-[#6366f1]/60 transition cursor-pointer align-super leading-none"
           title={
             matchedCitation
-              ? `Click to jump to ${matchedCitation.paper_title} — Page ${pageNum} & highlight source passage`
-              : `Jump to ${paperId}, Page ${pageNum}`
+              ? `[${refNum}] ${matchedCitation.paper_title} — Page ${pageNum} (Click to open in PDF Reader)`
+              : `[${refNum}] ${rawPaperId} — Page ${pageNum}`
           }
         >
-          <MapPin className="w-3 h-3 text-amber-300 shrink-0" />
-          <span>
-            {paperId.replace(/^paper_/, '')} · p.{pageNum}
-          </span>
+          [{refNum}, p.{pageNum}]
         </button>
       )
     })
 
-    lastIndex = tokenRegex.lastIndex
+    lastIndex = combinedCitationRegex.lastIndex
   }
 
   if (lastIndex < answerText.length) {
@@ -100,186 +159,196 @@ export default function ChatWorkspace({
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-900/70 border-r border-slate-800">
-      {/* Workspace Subheader */}
-      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-sky-400" />
-          <h2 className="text-sm font-semibold text-slate-200">
-            Grounded Literature Synthesis
-          </h2>
-        </div>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          Zero-Hallucination Guard
-        </span>
-      </div>
-
-      {/* Message History */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex flex-col h-full bg-[#09090b] border-r border-[#27272a]">
+      {/* Conversation Stream */}
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
         {messages.length === 0 ? (
-          <div className="space-y-4 py-6">
-            <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/70 space-y-2">
-              <h3 className="text-sm font-semibold text-sky-300 flex items-center gap-2">
-                <BookOpen className="w-4 h-4" />
-                Ask Comparative Questions Across Your Corpus
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Every claim is verified via Hybrid Retrieval (<code className="text-sky-300">BM25 + ChromaDB → RRF → Cross-Encoder</code>).
-                Click any citation badge to jump directly to the exact PDF page and highlight the source paragraph.
-              </p>
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 py-12">
+            <div className="w-10 h-10 rounded-xl bg-[#18181b] border border-[#27272a] flex items-center justify-center mb-3">
+              <BookOpen className="w-4 h-4 text-[#6366f1]" />
             </div>
-
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                Try a sample comparative query:
-              </p>
-              <div className="grid grid-cols-1 gap-2">
-                {SUGGESTED_PROMPTS.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => onSendQuery(prompt)}
-                    disabled={isLoading}
-                    className="text-left text-xs p-3 rounded-lg bg-slate-800/40 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 text-slate-200 transition flex items-start justify-between gap-2 group"
-                  >
-                    <span>{prompt}</span>
-                    <Send className="w-3.5 h-3.5 text-slate-500 group-hover:text-sky-400 shrink-0 mt-0.5" />
-                  </button>
-                ))}
-              </div>
-            </div>
+            <h2 className="text-sm font-semibold text-[#f4f4f5] tracking-tight">
+              Ask a question about your papers
+            </h2>
+            <p className="text-xs text-[#a1a1aa] leading-relaxed max-w-sm mt-1.5">
+              Get answers backed by direct citations from your uploaded PDFs. Click any citation badge to jump to that page in the PDF reader.
+            </p>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`rounded-xl p-4 ${
-                msg.role === 'user'
-                  ? 'bg-sky-600/20 border border-sky-500/30 ml-6'
-                  : 'bg-slate-800/80 border border-slate-700/80 mr-2'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  {msg.role === 'user' ? 'Researcher Query' : 'ScholarGraph Synthesis'}
-                </span>
-                {msg.role === 'assistant' && msg.meta && (
-                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-sky-400" />
-                      IR: {msg.meta.retrieval_latency_ms}ms
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-900/80 text-slate-300 border border-slate-700">
-                      {msg.meta.model_used}
-                    </span>
+          messages.map((msg) => {
+            if (msg.role === 'user') {
+              return (
+                <div key={msg.id} className="flex justify-end pt-2">
+                  <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-[#18181b] border border-[#27272a] px-4 py-2.5 text-[13.5px] text-[#f4f4f5] leading-relaxed shadow-sm">
+                    {msg.content}
                   </div>
-                )}
-              </div>
+                </div>
+              )
+            }
 
-              {msg.role === 'user' ? (
-                <p className="text-sm text-slate-100">{msg.content}</p>
-              ) : (
-                <div className="space-y-3">
-                  {msg.status === 'insufficient_context' && (
-                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
-                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>
-                        Out-of-Scope / Insufficient Evidence Guardrail Triggered — 0 Hallucinations
-                      </span>
-                    </div>
-                  )}
+            const { registerPaperId } = buildPaperReferenceMap(msg.content, msg.citations || [])
+            const isExtractiveFallback = msg.meta?.model_used === 'extractive-fallback'
+            const isInsufficient = msg.status === 'insufficient_context'
 
-                  <div className="text-sm text-slate-100 leading-relaxed whitespace-pre-wrap">
-                    {renderAnswerWithCitations(msg.content, msg.citations, onSelectCitation)}
-                  </div>
+            const displayedAnswer = isInsufficient
+              ? "I couldn't find relevant information in your uploaded papers to answer this question."
+              : msg.content
 
-                  {/* Grounded Provenance Citation Cards */}
-                  {msg.citations && msg.citations.length > 0 && (
-                    <div className="pt-2 border-t border-slate-700/70 space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                        Verified Source Passages (Click to Highlight in PDF):
-                      </p>
-                      <div className="grid grid-cols-1 gap-1.5">
-                        {msg.citations.map((cit) => {
-                          const isActive =
-                            activeCitation && activeCitation.chunk_id === cit.chunk_id
-                          return (
-                            <button
-                              key={cit.chunk_id}
-                              type="button"
-                              onClick={() => onSelectCitation(cit)}
-                              className={`text-left p-2.5 rounded-lg border transition flex flex-col gap-1 ${
-                                isActive
-                                  ? 'bg-amber-400/15 border-amber-400 text-amber-100 shadow-md'
-                                  : 'bg-slate-900/70 border-slate-700/70 hover:border-sky-400/60 text-slate-200'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-semibold text-sky-300 flex items-center gap-1.5 truncate">
-                                  <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                  {cit.paper_title}
-                                </span>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono">
-                                    Page {cit.page}
-                                  </span>
-                                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-mono">
-                                    {(cit.relevance_score * 100).toFixed(1)}%
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-xs text-slate-400 line-clamp-2 italic">
-                                &ldquo;{renderMathSegment(cit.snippet, `snip-${cit.chunk_id}`)}&rdquo;
-                              </p>
-                            </button>
-                          )
-                        })}
+            return (
+              <article
+                key={msg.id}
+                className="pb-6 border-b border-[#27272a] last:border-b-0 space-y-3.5 relative"
+              >
+                {/* Hover Telemetry Icon */}
+                {msg.meta && (
+                  <div className="flex justify-end -mb-2">
+                    <div className="relative group inline-flex items-center">
+                      <button
+                        type="button"
+                        className="p-1 rounded text-[#a1a1aa]/70 hover:text-[#f4f4f5] hover:bg-[#18181b] transition cursor-default"
+                        aria-label="Response Info"
+                      >
+                        <Info className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute right-0 top-6 z-30 w-max max-w-xs px-2.5 py-1.5 rounded-md bg-[#18181b] border border-[#27272a] shadow-xl text-[11px] text-[#a1a1aa] font-mono flex items-center gap-2">
+                        <span>Search: {msg.meta.retrieval_latency_ms}ms</span>
+                        {msg.meta.synthesis_latency_ms != null && (
+                          <>
+                            <span>·</span>
+                            <span>Response: {msg.meta.synthesis_latency_ms}ms</span>
+                          </>
+                        )}
+                        <span>·</span>
+                        <span className="text-[#f4f4f5]">{msg.meta.model_used}</span>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Red Alert Banner when Extractive Fallback is active */}
+                {isExtractiveFallback && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/35 text-rose-200 text-xs leading-relaxed">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-rose-200">
+                        Extractive Fallback Active (AI Model Unavailable)
+                      </p>
+                      <p className="text-rose-300/90 mt-0.5">
+                        The AI model could not be reached or is turned off. Instead of a generated summary, the response below shows direct sentences pulled verbatim from your papers that best match your question.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Editorial Prose Body */}
+                <div className="text-[13.5px] text-[#e4e4e7] leading-7 whitespace-pre-wrap">
+                  {renderAnswerWithCitations(
+                    displayedAnswer,
+                    msg.citations,
+                    onSelectCitation,
+                    registerPaperId
                   )}
                 </div>
-              )}
-            </div>
-          ))
+
+                {/* Compact Verified Source Passages */}
+                {msg.citations && msg.citations.length > 0 && (
+                  <div className="pt-3 border-t border-[#27272a]/70 space-y-2">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-[#a1a1aa]">
+                      Cited Sources ({msg.citations.length})
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {msg.citations.map((cit) => {
+                        const isActive =
+                          activeCitation && activeCitation.chunk_id === cit.chunk_id
+                        const refNum = registerPaperId(cit.paper_id)
+                        return (
+                          <button
+                            key={cit.chunk_id}
+                            type="button"
+                            onClick={() => onSelectCitation(cit)}
+                            className={`text-left px-3 py-2 rounded-lg border transition flex flex-col gap-1 cursor-pointer ${
+                              isActive
+                                ? 'bg-[#6366f1]/12 border-[#6366f1] text-[#f4f4f5]'
+                                : 'bg-[#18181b]/80 border-[#27272a] hover:border-[#6366f1]/50 text-[#f4f4f5]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="px-1.5 py-0.5 rounded bg-[#6366f1]/15 text-[#818cf8] border border-[#6366f1]/30 text-[10px] font-mono font-semibold shrink-0">
+                                  [{refNum}, p.{cit.page}]
+                                </span>
+                                <span className="text-xs font-medium text-[#f4f4f5] truncate">
+                                  {cit.paper_title}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-[#a1a1aa] font-mono shrink-0">
+                                Page {cit.page}
+                              </span>
+                            </div>
+                            <p className="text-xs text-[#a1a1aa] line-clamp-2 leading-relaxed">
+                              &ldquo;{renderMathSegment(cit.snippet, `snip-${cit.chunk_id}`)}&rdquo;
+                            </p>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </article>
+            )
+          })
         )}
 
         {isLoading && (
-          <div className="rounded-xl p-4 bg-slate-800/60 border border-slate-700/70 animate-pulse space-y-2">
-            <div className="h-3 w-44 bg-slate-700 rounded" />
-            <div className="h-3 w-full bg-slate-700/70 rounded" />
-            <div className="h-3 w-5/6 bg-slate-700/70 rounded" />
+          <div className="py-4 space-y-2.5 animate-pulse">
+            <div className="h-3 w-36 bg-[#18181b] rounded" />
+            <div className="h-3 w-full bg-[#18181b] rounded" />
+            <div className="h-3 w-5/6 bg-[#18181b] rounded" />
           </div>
         )}
       </div>
 
-      {/* Prompt Input Bar */}
-      <form onSubmit={handleSubmit} className="p-3 border-t border-slate-800 bg-slate-900">
-        {selectedPaperIds && selectedPaperIds.length > 0 && (
-          <div className="mb-2 text-[11px] text-sky-300 flex items-center gap-1.5">
-            <span>Filtering across {selectedPaperIds.length} selected paper(s)</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
+      {/* Prominent Prompt Composer */}
+      <form
+        onSubmit={handleSubmit}
+        className="p-4 border-t border-[#27272a] bg-[#09090b]"
+      >
+        <div className="rounded-2xl bg-[#18181b] border border-[#3f3f46]/80 focus-within:border-[#6366f1] focus-within:ring-2 focus-within:ring-[#6366f1]/25 shadow-[0_8px_30px_rgb(0,0,0,0.45)] transition p-3.5">
+          <textarea
+            rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a scientific question across the indexed papers..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSubmit(e)
+              }
+            }}
+            placeholder="Ask a question about your papers..."
             disabled={isLoading}
-            className="flex-1 bg-slate-800/90 border border-slate-700 focus:border-sky-400 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-400 focus:outline-none transition"
+            className="w-full bg-transparent resize-none text-sm text-[#f4f4f5] placeholder-[#a1a1aa] leading-relaxed focus:outline-none min-h-[52px]"
           />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="px-4 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-400 disabled:bg-slate-700 disabled:text-slate-500 text-slate-950 font-semibold text-sm transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <Send className="w-4 h-4" />
-            <span>Ask</span>
-          </button>
+          <div className="flex items-center justify-between gap-2 pt-2 mt-1 border-t border-[#27272a]/80">
+            <div className="text-[11px] text-[#a1a1aa] flex items-center gap-2">
+              {selectedPaperIds && selectedPaperIds.length > 0 ? (
+                <span className="px-2 py-0.5 rounded-md bg-[#6366f1]/15 text-[#818cf8] border border-[#6366f1]/30 font-medium">
+                  Searching {selectedPaperIds.length} selected paper(s)
+                </span>
+              ) : (
+                <span>Press Enter to ask · Shift+Enter for new line</span>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:bg-[#27272a] disabled:text-[#a1a1aa]/50 text-white font-semibold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Ask</span>
+            </button>
+          </div>
         </div>
       </form>
     </div>
   )
 }
-
