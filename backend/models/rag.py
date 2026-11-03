@@ -19,6 +19,14 @@ class CitationToken(BaseModel):
     relevance_score: float = Field(..., ge=0.0, le=1.0, description="Normalized relevance confidence score [0.0 - 1.0]")
 
 
+class ConversationTurn(BaseModel):
+    """A prior chat turn used to resolve follow-up questions (e.g. "just give me the formulas")."""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(default="", max_length=6000)
+    paper_ids: List[str] = Field(default_factory=list, description="Papers cited in this turn (assistant only)")
+
+
 class QueryRequest(BaseModel):
     """Client query payload for multi-document comparative Q&A."""
 
@@ -26,6 +34,9 @@ class QueryRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20, description="Number of top re-ranked passages passed to synthesis")
     paper_ids: Optional[List[str]] = Field(default=None, description="Optional subset of paper IDs to search")
     api_key: Optional[str] = Field(default=None, description="Optional user-supplied Gemini API key override")
+    history: List[ConversationTurn] = Field(
+        default_factory=list, description="Recent conversation turns (oldest first) for follow-up resolution"
+    )
 
 
 class QueryResponse(BaseModel):

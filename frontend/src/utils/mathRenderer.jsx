@@ -4,14 +4,17 @@ import 'katex/dist/katex.min.css'
 
 /**
  * Safely render a LaTeX math expression to HTML using KaTeX.
+ * CRITICAL: output: 'html' prevents KaTeX from emitting both MathML (<math>) and HTML,
+ * which caused duplicate symbols (e.g. "i \n i", "v \n i") on copy or in text nodes.
  */
-function renderKatexToHtml(latexStr, displayMode = false) {
+export function renderKatexToHtml(latexStr, displayMode = false) {
   try {
     return katex.renderToString(latexStr.trim(), {
       displayMode,
       throwOnError: false,
       strict: false,
       trust: true,
+      output: 'html',
     })
   } catch {
     return latexStr
@@ -22,7 +25,7 @@ function renderKatexToHtml(latexStr, displayMode = false) {
  * Normalize bare LaTeX tokens (e.g., \frac{...}{...}, \dot{x}, \mathbb{R}^3, \|x_i - x_j\|^2, x_i)
  * that may appear outside $...$ delimiters in extracted PDF snippets or LLM outputs.
  */
-function wrapBareLatexExpressions(text) {
+export function wrapBareLatexExpressions(text) {
   if (!text) return ''
 
   // Split by existing math delimiters so we only inspect non-delimited segments
@@ -58,17 +61,13 @@ function wrapBareLatexExpressions(text) {
 }
 
 /**
- * Render inline bold (**...**), code (`...`), and markdown bullet prefixes (*   or - )
- * within a plain text fragment.
+ * Render inline bold (**...**), italics (*...*), code (`...`), and plain text.
  */
-function renderFormattedPlainSegment(text, keyPrefix) {
+function renderInlineStyles(text, keyPrefix) {
   if (!text) return null
 
-  // Replace markdown list prefixes at line starts (e.g. "\n*   " or "^*   ") with a clean bullet
-  const cleanedBullets = text.replace(/(^|\n)[ \t]*[*-][ \t]{1,6}/g, '$1  • ')
-
-  const tokenRegex = /(\*\*[^*]+\*\*|`[^`]+`)/g
-  const parts = cleanedBullets.split(tokenRegex)
+  const tokenRegex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
+  const parts = text.split(tokenRegex)
 
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
@@ -76,6 +75,13 @@ function renderFormattedPlainSegment(text, keyPrefix) {
         <strong key={`${keyPrefix}-b-${idx}`} className="font-semibold text-[#f4f4f5]">
           {part.slice(2, -2)}
         </strong>
+      )
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return (
+        <em key={`${keyPrefix}-em-${idx}`} className="italic text-[#d4d4d8]">
+          {part.slice(1, -1)}
+        </em>
       )
     }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
@@ -93,8 +99,8 @@ function renderFormattedPlainSegment(text, keyPrefix) {
 }
 
 /**
- * Render a text segment containing LaTeX ($...$, $$...$$, \(...\), \[...\]),
- * bare math expressions, bold text, and bullet points into React elements.
+ * Render an inline segment containing LaTeX ($...$, $$...$$, \(...\), \[...\])
+ * and inline styles (bold, italics, code) into React elements.
  */
 export function renderMathSegment(rawText, keyPrefix = 'math') {
   if (!rawText) return null
@@ -116,7 +122,7 @@ export function renderMathSegment(rawText, keyPrefix = 'math') {
       return (
         <span
           key={`${keyPrefix}-dm-${idx}`}
-          className="block my-2.5 py-2 px-3.5 rounded-lg bg-[#18181b] border border-[#27272a] overflow-x-auto text-center text-[#f4f4f5]"
+          className="block my-3 py-2.5 px-4 rounded-xl bg-[#18181b]/95 border border-[#27272a] overflow-x-auto text-center text-[#f4f4f5] shadow-inner"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )
@@ -138,6 +144,6 @@ export function renderMathSegment(rawText, keyPrefix = 'math') {
       )
     }
 
-    return renderFormattedPlainSegment(token, `${keyPrefix}-p-${idx}`)
+    return renderInlineStyles(token, `${keyPrefix}-s-${idx}`)
   })
 }

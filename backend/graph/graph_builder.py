@@ -375,7 +375,19 @@ class KnowledgeGraphBuilder:
         active_node_ids: Set[str] = set()
 
         if has_active_prompt:
-            query_tokens = set(tokenize_scientific_text(query or ""))
+            # Generic words that must never light up a node on their own (e.g. "models" matching
+            # "LoRA: ... Large Language Models" when the question is about Cucker-Smale models)
+            generic_tokens = {
+                "model", "models", "method", "methods", "approach", "approaches", "result", "results",
+                "large", "language", "system", "systems", "study", "analysis", "theory", "new",
+                "based", "learning", "network", "networks", "data", "paper", "papers", "three",
+                "two", "one", "four", "five", "first", "second", "third", "version", "versions",
+                "variant", "variants", "work", "works", "show", "find", "provide", "information",
+            }
+            query_tokens = {
+                t for t in tokenize_scientific_text(query or "")
+                if t not in generic_tokens and not t.isdigit() and len(t) >= 3
+            }
             cited_paper_ids: Set[str] = set()
             chunk_text_by_id: Dict[str, TextChunk] = {
                 c.id: c for c in (all_chunks or [])
@@ -388,7 +400,7 @@ class KnowledgeGraphBuilder:
                     cited_paper_ids.add(ch.paper_id)
                     active_chunks_text += " " + ch.text
                 else:
-                    m = re.match(r"^(paper_[a-zA-Z0-9]+)_c\d+$", cid)
+                    m = re.match(r"^(paper_.+)_c\d+$", cid)
                     if m:
                         cited_paper_ids.add(m.group(1))
 
@@ -409,16 +421,21 @@ class KnowledgeGraphBuilder:
                 label_tokens = set(tokenize_scientific_text(label))
 
                 score = 0.15
-                if ntype == "Paper" and meta.get("paper_id") in cited_paper_ids:
+                node_papers = set(meta.get("papers", []))
+                is_cited_paper = ntype == "Paper" and meta.get("paper_id") in cited_paper_ids
+                linked_to_cited = bool(node_papers.intersection(cited_paper_ids))
+                if is_cited_paper:
                     score = max(score, 0.95)
-                if label in matched_entities:
+                if label in matched_entities and (not cited_paper_ids or linked_to_cited or is_cited_paper):
                     score = max(score, 0.92)
                 if query_tokens and label_tokens:
                     overlap = len(query_tokens.intersection(label_tokens))
-                    if overlap > 0:
+                    # When the answer cites papers, only those papers (and their entities) may
+                    # light up via keyword overlap; otherwise unrelated nodes get highlighted.
+                    allowed = (not cited_paper_ids) or is_cited_paper or linked_to_cited
+                    if overlap > 0 and allowed:
                         score = max(score, min(0.95, 0.72 + 0.10 * overlap))
-                node_papers = set(meta.get("papers", []))
-                if node_papers.intersection(cited_paper_ids) and label.lower() in active_chunks_text.lower():
+                if linked_to_cited and label.lower() in active_chunks_text.lower():
                     score = max(score, 0.85)
 
                 node_relevance[node_id] = round(score, 3)

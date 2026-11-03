@@ -55,12 +55,13 @@ export async function deleteDocument(paperId) {
   return data
 }
 
-export async function submitQuery({ query, topK = 5, paperIds = null, apiKey = null }) {
+export async function submitQuery({ query, topK = 5, paperIds = null, apiKey = null, history = [] }) {
   const { data } = await apiClient.post('/query', {
     query,
     top_k: topK,
     paper_ids: paperIds,
     api_key: apiKey,
+    history,
   })
   return data
 }

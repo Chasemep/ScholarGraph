@@ -82,10 +82,22 @@ export default function App() {
 
     try {
       const filterIds = selectedPaperIds.length > 0 ? selectedPaperIds : null
+      // Recent conversation so follow-ups like "just give me the formulas" keep their context
+      const history = messages
+        .filter((m) => m.role === 'user' || (m.role === 'assistant' && m.status === 'success'))
+        .slice(-6)
+        .map((m) => ({
+          role: m.role,
+          content: String(m.content || '').slice(0, 4000),
+          paper_ids: m.role === 'assistant'
+            ? [...new Set((m.citations || []).map((c) => c.paper_id))]
+            : [],
+        }))
       const res = await submitQuery({
         query: queryText,
         topK: 5,
         paperIds: filterIds,
+        history,
       })
 
       const assistantMsg = {

@@ -1,6 +1,38 @@
 import React, { useState } from 'react'
 import { Send, BookOpen, AlertCircle, Info } from 'lucide-react'
 import { renderMathSegment } from '../utils/mathRenderer'
+import { MarkdownBlockRenderer } from './MarkdownBlockRenderer'
+
+/**
+ * Matches a bracketed citation group, including multi-source and page-range forms:
+ *   [paper_hu2021, Page 4]
+ *   [paper_a, Page 2, Page 6]
+ *   [paper_a, Page 1-2]
+ *   [paper_a, Page 1; paper_b, Page 2]
+ */
+const CITATION_GROUP_SOURCE =
+  '\\[((?:\\s*[a-zA-Z0-9_-]+,\\s*(?:Pages?|p\\.?)\\s*\\d+(?:\\s*[-–,]\\s*(?:Pages?|p\\.?)?\\s*\\d+)*\\s*;?)+)\\]'
+
+/** Parse the inside of a citation group into [{ paperId, pages: [..] }]. */
+function parseCitationGroup(inner) {
+  return inner
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const m = part.match(/^([a-zA-Z0-9_-]+),\s*(.*)$/)
+      if (!m) return null
+      const pagesStr = m[2]
+      let pages = (pagesStr.match(/\d+/g) || []).map((s) => parseInt(s, 10))
+      const range = pagesStr.match(/(\d+)\s*[-–]\s*(?:Pages?|p\.?)?\s*(\d+)/i)
+      if (range && pages.length === 2) {
+        const [a, b] = [parseInt(range[1], 10), parseInt(range[2], 10)]
+        if (b >= a && b - a <= 10) pages = Array.from({ length: b - a + 1 }, (_, i) => a + i)
+      }
+      return { paperId: m[1], pages: pages.filter((n) => !Number.isNaN(n)) }
+    })
+    .filter(Boolean)
+}
 
 /**
  * Builds a deterministic 1-based reference number map (e.g. paper_cuckersmale_original -> 1)
@@ -32,10 +64,10 @@ function buildPaperReferenceMap(answerText = '', citations = []) {
     if (c?.paper_id) registerPaperId(c.paper_id)
   })
 
-  const bracketRegex = /\[([a-zA-Z0-9_-]+),\s*(?:Pages?|p\.?)\s*(\d+(?:\s*,\s*(?:Pages?|p\.?)?\s*\d+)*)\]/gi
+  const bracketRegex = new RegExp(CITATION_GROUP_SOURCE, 'gi')
   let match
   while ((match = bracketRegex.exec(answerText)) !== null) {
-    registerPaperId(match[1])
+    parseCitationGroup(match[1]).forEach((g) => registerPaperId(g.paperId))
   }
 
   return { registerPaperId }
@@ -45,6 +77,7 @@ function buildPaperReferenceMap(answerText = '', citations = []) {
  * Parses inline citation markers like:
  * - [paper_hu2021, Page 4]
  * - [paper_cuckersmale_original, Page 2, Page 6]
+ * - [paper_a, Page 1-2] and [paper_a, Page 1; paper_b, Page 2]
  * - cuckersmale_original · p.2
  * and converts them into compact, clickable superscript badges (e.g. [1, p.2]),
  * while rendering all surrounding LaTeX math ($...$, $$...$$, \frac, x_i, etc.) via KaTeX.
@@ -52,8 +85,10 @@ function buildPaperReferenceMap(answerText = '', citations = []) {
 function renderAnswerWithCitations(answerText, citations = [], onSelectCitation, registerPaperId) {
   if (!answerText) return null
 
-  const combinedCitationRegex =
-    /\[([a-zA-Z0-9_-]+),\s*(?:Pages?|p\.?)\s*(\d+(?:\s*,\s*(?:Pages?|p\.?)?\s*\d+)*)\]|(?:\b(paper_[a-zA-Z0-9_-]+|[a-zA-Z0-9]+_[a-zA-Z0-9_-]+)\s*·\s*p\.?\s*(\d+))/gi
+  const combinedCitationRegex = new RegExp(
+    `${CITATION_GROUP_SOURCE}|(?:\\b(paper_[a-zA-Z0-9_-]+|[a-zA-Z0-9]+_[a-zA-Z0-9_-]+)\\s*·\\s*p\\.?\\s*(\\d+))`,
+    'gi'
+  )
 
   const parts = []
   let lastIndex = 0
@@ -90,13 +125,12 @@ function renderAnswerWithCitations(answerText, citations = [], onSelectCitation,
       )
     }
 
-    const rawPaperId = match[1] || match[3]
-    const rawPagesStr = match[2] || match[4] || ''
-    const refNum = registerPaperId(rawPaperId)
+    const groups = match[1]
+      ? parseCitationGroup(match[1])
+      : [{ paperId: match[2], pages: [parseInt(match[3], 10)] }]
 
-    const pageNums = (rawPagesStr.match(/\d+/g) || [])
-      .map((s) => parseInt(s, 10))
-      .filter((n) => !Number.isNaN(n))
+    groups.forEach(({ paperId: rawPaperId, pages: pageNums }, gIdx) => {
+    const refNum = registerPaperId(rawPaperId)
 
     pageNums.forEach((pageNum, idx) => {
       const matchedCitation = findMatchingCitationObj(rawPaperId, pageNum)
@@ -110,7 +144,7 @@ function renderAnswerWithCitations(answerText, citations = [], onSelectCitation,
 
       parts.push(
         <button
-          key={`${rawPaperId}-${pageNum}-${match.index}-${idx}`}
+          key={`${rawPaperId}-${pageNum}-${match.index}-${gIdx}-${idx}`}
           type="button"
           onClick={() => onSelectCitation(citationPayload)}
           className="inline-flex items-center mx-0.5 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-[#6366f1]/15 text-[#818cf8] border border-[#6366f1]/30 hover:bg-[#6366f1]/25 hover:text-[#a5b4fc] hover:border-[#6366f1]/60 transition cursor-pointer align-super leading-none"
@@ -123,6 +157,7 @@ function renderAnswerWithCitations(answerText, citations = [], onSelectCitation,
           [{refNum}, p.{pageNum}]
         </button>
       )
+    })
     })
 
     lastIndex = combinedCitationRegex.lastIndex
@@ -241,14 +276,12 @@ export default function ChatWorkspace({
                 )}
 
                 {/* Editorial Prose Body */}
-                <div className="text-[13.5px] text-[#e4e4e7] leading-7 whitespace-pre-wrap">
-                  {renderAnswerWithCitations(
-                    displayedAnswer,
-                    msg.citations,
-                    onSelectCitation,
-                    registerPaperId
-                  )}
-                </div>
+                <MarkdownBlockRenderer
+                  content={displayedAnswer}
+                  citations={msg.citations}
+                  onSelectCitation={onSelectCitation}
+                  registerPaperId={registerPaperId}
+                />
 
                 {/* Compact Verified Source Passages */}
                 {msg.citations && msg.citations.length > 0 && (

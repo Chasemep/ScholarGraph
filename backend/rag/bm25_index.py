@@ -16,6 +16,7 @@ STOPWORDS = {
     "paper", "papers", "propose", "proposes", "adapt", "adapts", "evaluate",
     "evaluates", "how", "what", "why", "where", "when", "does", "do", "did",
     "each", "both", "all", "versus", "vs", "between", "across", "used", "using",
+    "difference", "differences", "different", "differ", "provided", "given", "contrast",
 }
 
 
@@ -24,8 +25,16 @@ def tokenize_scientific_text(text: str) -> List[str]:
     if not text:
         return []
     normalized = re.sub(r"(\d),(\d)", r"\1\2", text.lower())
+    # Normalize typographic dashes (en/em dash, minus) so "Cucker–Smale" == "Cucker-Smale"
+    normalized = re.sub(r"[\u2010-\u2015\u2212]", "-", normalized)
     raw_tokens = re.findall(r"[a-z0-9]+(?:[-_][a-z0-9]+)*", normalized)
-    return [tok for tok in raw_tokens if tok not in STOPWORDS and len(tok) > 1]
+    tokens: List[str] = []
+    for tok in raw_tokens:
+        tokens.append(tok)
+        # Also emit the parts of hyphenated compounds so "cucker smale" matches "cucker-smale"
+        if "-" in tok or "_" in tok:
+            tokens.extend(re.split(r"[-_]", tok))
+    return [tok for tok in tokens if tok not in STOPWORDS and len(tok) > 1]
 
 
 class BM25IndexManager:

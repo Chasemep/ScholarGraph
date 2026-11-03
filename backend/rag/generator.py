@@ -11,13 +11,33 @@ from backend.rag.bm25_index import tokenize_scientific_text
 
 REFUSAL_MESSAGE = "The ingested literature does not contain sufficient evidence to answer this query."
 
-SYSTEM_GROUNDING_PROMPT = """You are ScholarGraph, a strictly grounded scientific literature research assistant.
-You MUST obey the Zero-Hallucination Invariant:
-1. Answer the user's question ONLY using facts explicitly stated in the provided CONTEXT PASSAGES below.
-2. Do NOT use external pre-trained knowledge, assumptions, or extrapolations.
-3. Every factual claim or sentence MUST include an inline citation token in the exact format [paper_id, Page X] corresponding to the passage where the fact appears.
-4. If the provided CONTEXT PASSAGES do not contain sufficient evidence to answer the question, respond with the exact sentence:
+SYSTEM_GROUNDING_PROMPT = """You are ScholarGraph, a grounded scientific literature research assistant.
+Rules:
+1. Base every factual claim ONLY on the provided CONTEXT PASSAGES. Do NOT bring in outside facts about these papers, authors, or results.
+2. You ARE expected to reason over the passages: compare, contrast, relate, and draw conclusions across papers,
+   even when no single passage explicitly states the comparison. For example, if Paper A's equation uses
+   a(t)(v_j(t) - v_i(t)) and Paper B's uses a(t - tau)(v_j(t - tau) - v_i(t)), you should explain that B introduces
+   a time delay tau that A does not have. Such inferences are allowed as long as each underlying fact is cited.
+3. When comparing models/methods, identify for each paper: the governing equations or mechanism, key assumptions
+   (e.g., delays, communication weights, propagation speed), and main results/conditions (e.g., flocking conditions,
+   asymptotic velocity). Then summarize the differences clearly (a markdown table is encouraged).
+4. Every claim MUST include an inline citation token in the exact format [paper_id, Page X] for the passage(s) it relies on.
+   Always use the full paper_id exactly as given (e.g. [paper_cuckersmale_with_delay, Page 2]); never write [Page X] alone,
+   never use numbers like [1], and never combine sources in one bracket — write [paper_a, Page 1] [paper_b, Page 2] instead.
+   Write math in LaTeX ($...$ inline, $$...$$ display). Never use raw HTML tags (such as <h4>, <strong>, <em>, <br>); write standard Markdown only (####, **, *, list bullets, markdown tables).
+5. The passages were extracted from PDFs, so equations are often garbled: subscripts/superscripts are detached and
+   placed after the symbol, summation limits and fraction parts appear on separate lines, and equation numbers like (1)
+   are interleaved. Carefully RECONSTRUCT such equations into correct LaTeX from the surrounding symbols and text
+   (e.g. "dv α N (2) i = a (t − τ)(v (t − τ) − v (t)), dt N ij j i j̸=i" is
+   $\\frac{dv_i}{dt} = \\frac{\\alpha}{N}\\sum_{j\\neq i} a_{ij}(t-\\tau)\\,(v_j(t-\\tau) - v_i(t))$). Never claim a formula
+   is missing if it is present in garbled form. Do not invent terms that are not supported by the garbled text.
+6. When the user asks for formulas/equations, answer primarily with the reconstructed display equations for each
+   paper/model (with a one-line description of each symbol and the equation's number in the paper if visible), not prose.
+7. Use the CONVERSATION HISTORY only to understand what the user is referring to (e.g. "them", "the formulas", "each version");
+   facts must still come from the CONTEXT PASSAGES.
+8. Only if the passages are genuinely unrelated to the question, respond with the exact sentence:
 "The ingested literature does not contain sufficient evidence to answer this query."
+   If evidence is partial, answer what the passages support and briefly note what is not covered instead of refusing.
 """
 
 
@@ -108,6 +128,61 @@ def extractive_fallback_synthesis(
     return " ".join(synthesized_sentences)
 
 
+def _repair_bare_page_citations(text: str, valid_paper_ids: set) -> str:
+    """Attach a paper_id to bare "[Page N]" tokens so every citation is clickable.
+
+    - In markdown tables, the paper is taken from the column header (e.g. "Finite Speed [paper_paper1]").
+    - Elsewhere, the most recent paper_id mentioned earlier in the same line/paragraph is used.
+    """
+    if "[Page" not in text and "[p." not in text:
+        return text
+
+    bare_re = re.compile(r"\[(?:Pages?|p\.?)\s*(\d+(?:\s*[-–,]\s*\d+)*)\]", re.IGNORECASE)
+    pid_re = re.compile(r"(paper_[\w-]+)")
+    lines = text.split("\n")
+    header_cols: Optional[List[Optional[str]]] = None
+    last_pid: Optional[str] = None
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            last_pid = None
+            header_cols = None if not stripped.startswith("|") else header_cols
+            continue
+
+        if stripped.startswith("|"):
+            cells = stripped.strip("|").split("|")
+            if header_cols is None:
+                header_cols = []
+                for cell in cells:
+                    m = pid_re.search(cell)
+                    header_cols.append(m.group(1) if m and m.group(1) in valid_paper_ids else None)
+                continue
+            new_cells = []
+            for col, cell in enumerate(cells):
+                col_pid = header_cols[col] if col < len(header_cols) else None
+                if col_pid:
+                    cell = bare_re.sub(lambda m: f"[{col_pid}, Page {m.group(1)}]", cell)
+                new_cells.append(cell)
+            lines[i] = "|" + "|".join(new_cells) + "|"
+            continue
+
+        header_cols = None
+
+        def _fix(m: "re.Match[str]", line_text: str = line) -> str:
+            before = line_text[: m.start()]
+            found = pid_re.findall(before)
+            pid = next((p for p in reversed(found) if p in valid_paper_ids), None) or last_pid
+            return f"[{pid}, Page {m.group(1)}]" if pid else m.group(0)
+
+        lines[i] = bare_re.sub(_fix, line)
+        found_line = [p for p in pid_re.findall(lines[i]) if p in valid_paper_ids]
+        if found_line:
+            last_pid = found_line[-1]
+
+    return "\n".join(lines)
+
+
 class GroundedGenerator:
     """Executes strictly grounded answer synthesis with zero-hallucination guardrails."""
 
@@ -147,7 +222,7 @@ class GroundedGenerator:
         }
 
         last_err: Optional[Exception] = None
-        with httpx.Client(timeout=20.0) as client:
+        with httpx.Client(timeout=60.0) as client:
             for model_name in models_to_try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
                 try:
@@ -171,15 +246,45 @@ class GroundedGenerator:
             raise last_err
         raise RuntimeError("All Gemini model endpoints failed or returned empty responses.")
 
+    def quick_completion(self, prompt: str, api_key: str) -> str:
+        """Fast, short, non-grounded completion used only for query rewriting. Returns '' on failure."""
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.0, "maxOutputTokens": 120},
+        }
+        models = list(dict.fromkeys(["gemini-flash-lite-latest", settings.gemini_model]))
+        try:
+            with httpx.Client(timeout=8.0) as client:
+                for model_name in models:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+                    try:
+                        resp = client.post(url, params={"key": api_key}, json=payload)
+                    except Exception:
+                        continue
+                    if resp.status_code != 200:
+                        continue
+                    parts = resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                    text_out = "".join(p.get("text", "") for p in parts if "text" in p).strip()
+                    if text_out:
+                        return text_out.splitlines()[0]
+        except Exception:
+            return ""
+        return ""
+
     def generate(
         self,
         query: str,
         ranked_candidates: List[Dict[str, Any]],
         api_key_override: Optional[str] = None,
         prefer_extractive: bool = False,
+        comparative: bool = False,
+        formula_mode: bool = False,
+        history: Optional[List[Any]] = None,
+        retrieval_query: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Generate a grounded answer and return status, answer, citations, and model_used."""
-        if not ranked_candidates or not _has_query_overlap(query, ranked_candidates):
+        guard_query = retrieval_query or query
+        if not ranked_candidates or not _has_query_overlap(guard_query, ranked_candidates):
             return {
                 "answer": REFUSAL_MESSAGE,
                 "status": "insufficient_context",
@@ -208,23 +313,69 @@ class GroundedGenerator:
             effective_api_key = (api_key_override or settings.gemini_api_key or "").strip()
 
         if effective_api_key and not prefer_extractive:
-            context_blocks: List[str] = []
-            for idx, cand in enumerate(valid_candidates, start=1):
+            # Group passages by paper so the model can contrast papers side by side
+            by_paper: Dict[str, List[TextChunk]] = {}
+            for cand in valid_candidates:
                 c: TextChunk = cand["chunk"]
-                context_blocks.append(
-                    f"PASSAGE {idx} | paper_id={c.paper_id} | title={c.paper_title or c.paper_id} "
-                    f"| Page={c.page_number} | Section={c.section}\n"
-                    f"CONTENT: {c.text}"
+                by_paper.setdefault(c.paper_id, []).append(c)
+
+            context_blocks: List[str] = []
+            idx = 1
+            for pid, p_chunks in by_paper.items():
+                title = p_chunks[0].paper_title or pid
+                block_lines = [f"=== PAPER paper_id={pid} | title={title} ==="]
+                for c in sorted(p_chunks, key=lambda x: (x.page_number, x.id)):
+                    block_lines.append(
+                        f"PASSAGE {idx} | paper_id={c.paper_id} | Page={c.page_number} | Section={c.section}\n"
+                        f"CONTENT: {c.text}"
+                    )
+                    idx += 1
+                context_blocks.append("\n\n".join(block_lines))
+
+            if formula_mode:
+                instruction = (
+                    "Output ONLY the governing equations of each paper's model: one short heading per paper, then "
+                    "the reconstructed LaTeX display equations (including the definition of the interaction weights "
+                    "a_ij and any delay term), each followed by its citation and a single compact line defining new "
+                    "symbols. No introduction, no comparison table, no prose summary unless the user asked for it. "
+                    "Cite [paper_id, Page X] for every equation:"
                 )
+            elif comparative or len(by_paper) > 1:
+                instruction = (
+                    "Compare the papers above: describe each paper's model/approach (include its key equations, "
+                    "reconstructed in LaTeX), then explicitly list the differences (and similarities) you can infer "
+                    "from the passages. Cite [paper_id, Page X] for every claim:"
+                )
+            else:
+                instruction = "Provide a concise, grounded answer citing [paper_id, Page X] for every claim:"
+
+            history_block = ""
+            if history:
+                lines = []
+                for turn in history[-6:]:
+                    content = (getattr(turn, "content", "") or "").strip()
+                    if not content:
+                        continue
+                    role = getattr(turn, "role", "user").upper()
+                    lines.append(f"{role}: {content[:700]}")
+                if lines:
+                    history_block = "CONVERSATION HISTORY (for reference resolution only):\n" + "\n".join(lines) + "\n\n"
+
+            resolved = (
+                f"\n(Interpreted in context as: {retrieval_query})"
+                if retrieval_query and retrieval_query.strip() != query.strip()
+                else ""
+            )
             user_prompt = (
-                f"CONTEXT PASSAGES:\n\n"
+                history_block
+                + f"CONTEXT PASSAGES ({len(by_paper)} papers):\n\n"
                 + "\n\n".join(context_blocks)
-                + f"\n\nUSER QUESTION: {query}\n\n"
-                "Provide a concise, strictly grounded synthesis citing [paper_id, Page X] for every claim:"
+                + f"\n\nUSER QUESTION: {query}{resolved}\n\n"
+                + instruction
             )
             try:
                 llm_text, used_model_name = self._call_gemini(user_prompt, effective_api_key)
-                if REFUSAL_MESSAGE.lower() in llm_text.lower():
+                if REFUSAL_MESSAGE.lower() in llm_text.lower() and len(llm_text) < 300:
                     return {
                         "answer": REFUSAL_MESSAGE,
                         "status": "insufficient_context",
@@ -234,10 +385,24 @@ class GroundedGenerator:
                 valid_paper_ids = {c.paper_id for c in citations}
                 has_valid_citation = any(pid in llm_text for pid in valid_paper_ids)
                 if llm_text and has_valid_citation:
+                    llm_text = _repair_bare_page_citations(llm_text, valid_paper_ids)
+                    # Only list sources the answer actually cites (paper_id + page), not every passage sent
+                    cited_pairs = set()
+                    for m in re.finditer(r"\[([^\]]+)\]", llm_text):
+                        for part in m.group(1).split(";"):
+                            pm = re.match(r"\s*(paper_[\w-]+)\s*,\s*(?:Pages?|p\.?)\s*([\d\s,\-–]+)", part, re.I)
+                            if not pm:
+                                continue
+                            nums = [int(n) for n in re.findall(r"\d+", pm.group(2))]
+                            if len(nums) == 2 and re.search(r"[-–]", pm.group(2)):
+                                nums = list(range(nums[0], nums[1] + 1))
+                            for n in nums:
+                                cited_pairs.add((pm.group(1), n))
+                    used = [c for c in citations if (c.paper_id, c.page) in cited_pairs]
                     return {
                         "answer": llm_text,
                         "status": "success",
-                        "citations": citations,
+                        "citations": used or citations,
                         "model_used": used_model_name,
                     }
             except Exception:
