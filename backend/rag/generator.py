@@ -201,7 +201,11 @@ class GroundedGenerator:
             }
 
         citations = build_citation_tokens(valid_candidates)
-        effective_api_key = (api_key_override or settings.gemini_api_key or "").strip()
+        if api_key_override and api_key_override.strip() == "LOCAL_FALLBACK":
+            prefer_extractive = True
+            effective_api_key = ""
+        else:
+            effective_api_key = (api_key_override or settings.gemini_api_key or "").strip()
 
         if effective_api_key and not prefer_extractive:
             context_blocks: List[str] = []

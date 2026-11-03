@@ -143,9 +143,9 @@ class HybridReranker:
         if not fused_candidates:
             return []
 
-        # Limit Cross-Encoder pool to top 16 RRF candidates to keep latency < 800ms
+        # Limit Cross-Encoder pool to top 10 RRF candidates to keep CPU latency fast (< 500ms)
         # while ensuring at least the top candidate from each paper in the RRF pool is included
-        pool_limit = max(16, top_n * 2)
+        pool_limit = max(10, top_n * 2)
         seen_papers: set[str] = set()
         diverse_pool: List[Dict[str, Any]] = []
         remainder_pool: List[Dict[str, Any]] = []

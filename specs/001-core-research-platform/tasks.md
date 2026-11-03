@@ -142,10 +142,10 @@ description: "Task list for Core Grounded Literature Research Platform implement
 
 **Purpose**: Quantitative IR benchmark verification, UI settings polish, report artifact generation, and final documentation.
 
-- [ ] T047 [P] Create standardized 25-question IR evaluation dataset and CLI benchmark harness verifying $MRR@5 \ge 0.85$ and formatting output tables for Chapter 5 of the technical report in `backend/benchmarks/evaluate_rag.py`
-- [ ] T048 [P] Implement benchmark route `GET /api/benchmarks/run` in `backend/api/benchmark_routes.py` and automated verification test in `tests/test_benchmarks.py`
-- [ ] T049 [P] Build Settings / API Key modal allowing users to enter a custom Gemini API key or switch to local fallback in `frontend/src/components/Header.jsx`
-- [ ] T050 Polish UI error handling, toast notifications, and loading skeletons in `frontend/src/App.jsx`
+- [x] T047 [P] Create standardized 25-question IR evaluation dataset and CLI benchmark harness verifying $MRR@5 \ge 0.85$ and formatting output tables for Chapter 5 of the technical report in `backend/benchmarks/evaluate_rag.py`
+- [x] T048 [P] Implement benchmark route `GET /api/benchmarks/run` in `backend/api/benchmark_routes.py` and automated verification test in `tests/test_benchmarks.py`
+- [x] T049 [P] Build Settings / API Key modal allowing users to enter a custom Gemini API key or switch to local fallback in `frontend/src/components/Header.jsx`
+- [x] T050 Polish UI error handling, toast notifications, and loading skeletons in `frontend/src/App.jsx`
 - [x] T051 Write comprehensive root `README.md` documenting problem description, 4-tier architecture, prerequisites, PowerShell and Docker setup, seed paper walkthrough, and UI screenshots per Course Guidelines §3.2
 
 ---

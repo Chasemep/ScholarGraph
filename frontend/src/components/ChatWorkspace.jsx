@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Send, Sparkles, BookOpen, ShieldCheck, AlertTriangle, Clock, MapPin } from 'lucide-react'
+import { renderMathSegment } from '../utils/mathRenderer'
 
 const SUGGESTED_PROMPTS = [
   'Compare the parameter efficiency and memory overhead of LoRA versus full fine-tuning.',
@@ -9,25 +10,30 @@ const SUGGESTED_PROMPTS = [
 ]
 
 /**
- * Parses inline citation markers like [paper_hu2021, Page 4] or [paper_hu2021, Page 4, 9]
- * and turns them into interactive buttons linked to the corresponding CitationToken object.
+ * Parses inline citation markers like [paper_hu2021, Page 4], [paper_hu2021, Page 4, 9],
+ * or [paper_cuckersmale_original, Page 2, Page 6] and turns them into interactive buttons,
+ * while rendering all surrounding LaTeX math ($...$, $$...$$, \frac, x_i, etc.) via KaTeX.
  */
 function renderAnswerWithCitations(answerText, citations = [], onSelectCitation) {
   if (!answerText) return null
 
-  const tokenRegex = /\[([a-zA-Z0-9_-]+),\s*Pages?\s*([\d,\s]+)\]/gi
+  const tokenRegex = /\[([a-zA-Z0-9_-]+),\s*Pages?\s*(\d+(?:\s*,\s*(?:Pages?\s*)?\d+)*)\]/gi
   const parts = []
   let lastIndex = 0
   let match
 
   while ((match = tokenRegex.exec(answerText)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(answerText.slice(lastIndex, match.index))
+      const textSlice = answerText.slice(lastIndex, match.index)
+      parts.push(
+        <React.Fragment key={`seg-${lastIndex}`}>
+          {renderMathSegment(textSlice, `seg-${lastIndex}`)}
+        </React.Fragment>
+      )
     }
     const paperId = match[1]
-    const pageNums = match[2]
-      .split(',')
-      .map((s) => parseInt(s.trim(), 10))
+    const pageNums = (match[2].match(/\d+/g) || [])
+      .map((s) => parseInt(s, 10))
       .filter((n) => !Number.isNaN(n))
 
     pageNums.forEach((pageNum, idx) => {
@@ -36,11 +42,15 @@ function renderAnswerWithCitations(answerText, citations = [], onSelectCitation)
         citations.find((c) => c.paper_id === paperId) ||
         citations[0]
 
+      const citationPayload = matchedCitation
+        ? { ...matchedCitation, page: pageNum }
+        : { paper_id: paperId, paper_title: paperId, page: pageNum, bbox: null }
+
       parts.push(
         <button
           key={`${paperId}-${pageNum}-${match.index}-${idx}`}
           type="button"
-          onClick={() => matchedCitation && onSelectCitation(matchedCitation)}
+          onClick={() => onSelectCitation(citationPayload)}
           className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/40 hover:bg-sky-400/30 hover:border-sky-300 transition cursor-pointer align-baseline shadow-sm"
           title={
             matchedCitation
@@ -60,7 +70,12 @@ function renderAnswerWithCitations(answerText, citations = [], onSelectCitation)
   }
 
   if (lastIndex < answerText.length) {
-    parts.push(answerText.slice(lastIndex))
+    const tailSlice = answerText.slice(lastIndex)
+    parts.push(
+      <React.Fragment key={`seg-tail-${lastIndex}`}>
+        {renderMathSegment(tailSlice, `seg-tail-${lastIndex}`)}
+      </React.Fragment>
+    )
   }
 
   return parts
@@ -215,7 +230,7 @@ export default function ChatWorkspace({
                                 </div>
                               </div>
                               <p className="text-xs text-slate-400 line-clamp-2 italic">
-                                &ldquo;{cit.snippet}&rdquo;
+                                &ldquo;{renderMathSegment(cit.snippet, `snip-${cit.chunk_id}`)}&rdquo;
                               </p>
                             </button>
                           )

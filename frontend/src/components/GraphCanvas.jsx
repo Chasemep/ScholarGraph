@@ -13,6 +13,7 @@ import {
   BookOpen,
   MessageSquarePlus,
 } from 'lucide-react'
+import { renderMathSegment } from '../utils/mathRenderer'
 
 if (!cytoscape.prototype.hasInitialColaRegistered) {
   cytoscape.use(cola)
@@ -511,7 +512,7 @@ export default function GraphCanvas({
                   {selectedNode.type === 'Paper' ? 'Paper Abstract / Summary' : `What is ${selectedNode.label}?`}
                 </p>
                 <p className="text-xs text-slate-200 leading-relaxed">
-                  {selectedNode.metadata.description}
+                  {renderMathSegment(selectedNode.metadata.description, `desc-${selectedNode.id}`)}
                 </p>
               </div>
             )}
@@ -601,7 +602,7 @@ export default function GraphCanvas({
                       </p>
 
                       <p className="text-xs text-slate-300 italic leading-relaxed">
-                        &ldquo;{rel.explanation}&rdquo;
+                        &ldquo;{renderMathSegment(rel.explanation, `rel-${rel.paper_id}-${idx}`)}&rdquo;
                       </p>
                     </div>
                   )

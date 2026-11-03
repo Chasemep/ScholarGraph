@@ -4,6 +4,7 @@ import ChatWorkspace from './components/ChatWorkspace'
 import PDFViewer from './components/PDFViewer'
 import GraphCanvas from './components/GraphCanvas'
 import UploadModal from './components/UploadModal'
+import { CheckCircle2, AlertCircle, X } from 'lucide-react'
 import {
   fetchDocuments,
   submitQuery,
@@ -20,8 +21,10 @@ export default function App() {
   const [activeCitation, setActiveCitation] = useState(null)
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true)
   const [health, setHealth] = useState(null)
   const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const [toast, setToast] = useState(null)
 
   // Right-pane tab state: 'graph' | 'pdf'
   const [rightTab, setRightTab] = useState('graph')
@@ -32,7 +35,15 @@ export default function App() {
   })
   const [activeGraphQuery, setActiveGraphQuery] = useState('')
 
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev))
+    }, 4000)
+  }
+
   const loadWorkspaceData = async () => {
+    setIsWorkspaceLoading(true)
     try {
       const docs = await fetchDocuments()
       setPapers(docs)
@@ -40,14 +51,16 @@ export default function App() {
         setActivePaper(docs[0])
       }
     } catch (err) {
-      console.error('Failed to load documents:', err)
+      showToast(`Failed to load corpus documents: ${err.message}`, 'error')
     }
 
     try {
       const graphRes = await fetchKnowledgeGraph({ minDegree: 1 })
       setGraphData(graphRes)
     } catch (err) {
-      console.error('Failed to load knowledge graph:', err)
+      showToast(`Failed to load knowledge graph: ${err.message}`, 'error')
+    } finally {
+      setIsWorkspaceLoading(false)
     }
   }
 
@@ -107,6 +120,7 @@ export default function App() {
         }
       }
     } catch (err) {
+      showToast(`Query execution error: ${err.message}`, 'error')
       setMessages((prev) => [
         ...prev,
         {
@@ -137,7 +151,7 @@ export default function App() {
       setGraphData(freshGraph)
       setActiveGraphQuery('')
     } catch (err) {
-      console.error('Failed to reset graph:', err)
+      showToast(`Failed to reset graph: ${err.message}`, 'error')
     }
   }
 
@@ -163,6 +177,7 @@ export default function App() {
 
   const handleDeletePaper = async (paperId) => {
     try {
+      const target = papers.find((p) => p.id === paperId)
       await deleteDocument(paperId)
       const updated = papers.filter((p) => p.id !== paperId)
       setPapers(updated)
@@ -172,13 +187,39 @@ export default function App() {
       }
       const freshGraph = await fetchKnowledgeGraph({ minDegree: 1 })
       setGraphData(freshGraph)
+      showToast(`Removed "${target?.title || paperId}" from corpus.`)
     } catch (err) {
-      console.error('Delete failed:', err)
+      showToast(`Failed to delete paper: ${err.message}`, 'error')
     }
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100">
+    <div className="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100 relative">
+      {/* Toast Notification Banner (T050) */}
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-2.5 text-xs font-medium backdrop-blur-md transition ${
+            toast.type === 'error'
+              ? 'bg-rose-950/90 border-rose-500/50 text-rose-200'
+              : 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-2 text-slate-400 hover:text-white cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <Header
         papers={papers}
         activePaper={activePaper}
@@ -194,6 +235,7 @@ export default function App() {
         graphNodeCount={graphData?.total_nodes || 0}
         onOpenUploadModal={() => setIsUploadOpen(true)}
         health={health}
+        onSaveSettings={(msg) => showToast(msg, 'success')}
       />
 
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0">
@@ -207,8 +249,14 @@ export default function App() {
             selectedPaperIds={selectedPaperIds}
           />
         </div>
-        <div className="lg:col-span-7 h-full min-h-0 overflow-hidden">
-          {rightTab === 'graph' ? (
+        <div className="lg:col-span-7 h-full min-h-0 overflow-hidden relative">
+          {isWorkspaceLoading ? (
+            <div className="h-full w-full flex flex-col items-center justify-center p-8 bg-slate-950 space-y-3 animate-pulse">
+              <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700" />
+              <div className="h-4 w-56 bg-slate-800 rounded" />
+              <div className="h-3 w-40 bg-slate-800/70 rounded" />
+            </div>
+          ) : rightTab === 'graph' ? (
             <GraphCanvas
               graphData={graphData}
               activeQuery={activeGraphQuery}
@@ -230,7 +278,10 @@ export default function App() {
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onUploadComplete={loadWorkspaceData}
+        onUploadComplete={() => {
+          loadWorkspaceData()
+          showToast('PDF ingestion complete! Corpus and Knowledge Graph updated.')
+        }}
       />
     </div>
   )
