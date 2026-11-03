@@ -233,7 +233,7 @@ export default function App() {
         onDeletePaper={handleDeletePaper}
         rightTab={rightTab}
         onChangeRightTab={setRightTab}
-        graphNodeCount={graphData?.total_nodes || 0}
+        graphNodeCount={papers.length}
         onOpenUploadModal={() => setIsUploadOpen(true)}
         health={health}
         onSaveSettings={(msg) => showToast(msg, 'success')}
@@ -263,6 +263,7 @@ export default function App() {
               activeQuery={activeGraphQuery}
               onResetHighlight={handleResetGraphHighlight}
               onOpenPaperInReader={handleOpenPaperFromGraph}
+              onSelectCitation={handleSelectCitation}
               onAskAboutNode={handleSendQuery}
             />
           ) : (

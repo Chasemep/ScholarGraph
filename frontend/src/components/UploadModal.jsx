@@ -13,7 +13,7 @@ const STAGE_LABELS = {
   uploading: 'Uploading PDF...',
   parsing: 'Reading pages and text...',
   embedding: 'Indexing paper and citations...',
-  ready: 'Ready',
+  ready: 'Indexed & Added',
   failed: 'Upload failed',
 }
 
@@ -25,6 +25,21 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }) {
   const [errorMsg, setErrorMsg] = useState(null)
 
   if (!isOpen) return null
+
+  const allTasksFinished =
+    tasks.length > 0 &&
+    !isUploading &&
+    tasks.every((t) => t.status === 'ready' || t.status === 'failed')
+  const readyCount = tasks.filter((t) => t.status === 'ready').length
+
+  const handleCloseModal = () => {
+    if (!isUploading) {
+      setTasks([])
+      setSelectedFiles([])
+      setErrorMsg(null)
+    }
+    onClose()
+  }
 
   const handleFilesAdded = (fileList) => {
     setErrorMsg(null)
@@ -108,7 +123,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer p-1"
           >
             <X className="w-4 h-4" />
@@ -194,9 +209,17 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }) {
           {/* Staged Progress Indicators */}
           {tasks.length > 0 && (
             <div className="space-y-2.5">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-[#a1a1aa]">
-                Upload Progress
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-[#a1a1aa]">
+                  {allTasksFinished ? 'Completed Uploads' : 'Upload Progress'}
+                </p>
+                {allTasksFinished && readyCount > 0 && (
+                  <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Added {readyCount} {readyCount === 1 ? 'paper' : 'papers'} to graph
+                  </span>
+                )}
+              </div>
               {tasks.map((task) => {
                 const isReady = task.status === 'ready'
                 const isFailed = task.status === 'failed'
@@ -259,29 +282,41 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }) {
         <div className="px-5 py-3 border-t border-[#27272a] bg-[#09090b]/50 flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="px-3 py-1.5 rounded-md bg-[#09090b] hover:bg-[#27272a] border border-[#27272a] text-xs font-medium text-[#a1a1aa] hover:text-[#f4f4f5] transition cursor-pointer"
           >
-            Close
+            {allTasksFinished && selectedFiles.length === 0 ? 'Cancel' : 'Close'}
           </button>
-          <button
-            type="button"
-            onClick={handleStartUpload}
-            disabled={selectedFiles.length === 0 || isUploading}
-            className="px-3.5 py-1.5 rounded-md bg-[#6366f1] hover:bg-[#4f46e5] disabled:bg-[#09090b] disabled:text-[#a1a1aa]/40 disabled:border disabled:border-[#27272a] text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <UploadCloud className="w-3.5 h-3.5" />
-                Upload ({selectedFiles.length})
-              </>
-            )}
-          </button>
+
+          {allTasksFinished && selectedFiles.length === 0 ? (
+            <button
+              type="button"
+              onClick={handleCloseModal}
+              className="px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Done ({readyCount} Indexed)
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleStartUpload}
+              disabled={selectedFiles.length === 0 || isUploading}
+              className="px-3.5 py-1.5 rounded-md bg-[#6366f1] hover:bg-[#4f46e5] disabled:bg-[#09090b] disabled:text-[#a1a1aa]/40 disabled:border disabled:border-[#27272a] text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  Upload ({selectedFiles.length})
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

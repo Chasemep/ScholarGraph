@@ -6,9 +6,11 @@ import networkx as nx
 
 from backend.graph.entity_miner import (
     entity_miner,
+    find_citation_occurrences_in_paper,
     find_entity_evidence_in_paper,
     get_entity_description,
 )
+from backend.graph.topic_clustering import compute_paper_hierarchy
 from backend.models.graph import (
     CytoscapeEdge,
     CytoscapeEdgeData,
@@ -65,11 +67,19 @@ class KnowledgeGraphBuilder:
         papers_by_id = {p.id: p for p in papers}
         mined_by_paper: Dict[str, Dict[str, Any]] = {}
 
-        # First pass: extract entities and create Paper nodes with rich explanations
+        # First pass: extract entities and compute hierarchical topic/citation groups
         for paper in papers:
             p_chunks = chunks_by_paper.get(paper.id, [])
             mined = entity_miner.extract_for_paper(paper, p_chunks)
             mined_by_paper[paper.id] = mined
+
+        hierarchy = compute_paper_hierarchy(papers, chunks_by_paper, mined_by_paper)
+        paper_assignments = hierarchy["paper_assignments"]
+
+        for paper in papers:
+            p_chunks = chunks_by_paper.get(paper.id, [])
+            mined = mined_by_paper[paper.id]
+            assign = paper_assignments.get(paper.id, {})
 
             summary_text = paper.abstract or (p_chunks[0].text if p_chunks else paper.title)
             paper_node_id = f"node_{paper.id}"
@@ -88,6 +98,12 @@ class KnowledgeGraphBuilder:
                     "methods": mined["methods"],
                     "datasets": mined["datasets"],
                     "metrics": mined["metrics"],
+                    "group_id": assign.get("group_id", "group_1"),
+                    "group_label": assign.get("group_label", "Research Literature"),
+                    "group_details": assign.get("group_details"),
+                    "subgroup_id": assign.get("subgroup_id"),
+                    "subgroup_label": assign.get("subgroup_label"),
+                    "subgroup_details": assign.get("subgroup_details"),
                     "paper_relations": [],
                 },
             )
@@ -226,38 +242,109 @@ class KnowledgeGraphBuilder:
                     weight=1.0,
                 )
 
-            # Cross-paper CITES edges + populate Paper node's paper_relations
-            for cited_pid in mined["cited_paper_ids"]:
-                if cited_pid in known_paper_ids and cited_pid != paper.id:
-                    target_paper_node = f"node_{cited_pid}"
-                    cited_paper = papers_by_id[cited_pid]
-                    g.add_edge(
-                        paper_node_id,
-                        target_paper_node,
-                        type="CITES",
-                        label="CITES",
-                        weight=2.0,
-                    )
-                    g.nodes[paper_node_id]["metadata"]["paper_relations"].append(
+            # Cross-paper CITES edges + populate Paper node's paper_relations with exact occurrences
+            candidate_cited_ids = set(mined["cited_paper_ids"]) | known_paper_ids
+            for cited_pid in sorted(candidate_cited_ids):
+                if cited_pid not in known_paper_ids or cited_pid == paper.id:
+                    continue
+                cited_paper = papers_by_id[cited_pid]
+
+                occurrences = find_citation_occurrences_in_paper(
+                    paper, cited_paper, p_chunks
+                )
+                if not occurrences and cited_pid in mined["cited_paper_ids"]:
+                    first_chunk = p_chunks[0] if p_chunks else None
+                    occurrences = [
                         {
-                            "paper_id": cited_paper.id,
-                            "paper_title": cited_paper.title,
-                            "year": cited_paper.year,
-                            "role": "Cites Foundation",
-                            "explanation": f"{paper.title} builds upon and cites {cited_paper.title}.",
-                            "page": 2,
-                        }
-                    )
-                    g.nodes[target_paper_node]["metadata"]["paper_relations"].append(
-                        {
+                            "chunk_id": first_chunk.id if first_chunk else f"{paper.id}_c0",
                             "paper_id": paper.id,
                             "paper_title": paper.title,
-                            "year": paper.year,
-                            "role": "Cited By",
-                            "explanation": f"Cited and extended by {paper.title} ({paper.year}).",
-                            "page": 2,
+                            "cited_paper_id": cited_paper.id,
+                            "cited_paper_title": cited_paper.title,
+                            "page": first_chunk.page_number if first_chunk else 1,
+                            "section": first_chunk.section if first_chunk else "Introduction",
+                            "bbox": (
+                                first_chunk.bbox.model_dump()
+                                if first_chunk and hasattr(first_chunk.bbox, "model_dump")
+                                else None
+                            ),
+                            "snippet": f"{paper.title} cites and builds upon {cited_paper.title}.",
                         }
-                    )
+                    ]
+
+                if not occurrences:
+                    continue
+
+                is_preprint_anomaly = bool(
+                    paper.year
+                    and cited_paper.year
+                    and int(paper.year) < int(cited_paper.year)
+                )
+                anomaly_note = (
+                    f"This {paper.year} paper cites a work dated {cited_paper.year}. "
+                    "In academic publishing, this occurs when a paper cites an earlier arXiv preprint "
+                    "or working paper before its formal conference/journal publication year, or when "
+                    "the citing paper was updated in a later arXiv revision (v2/v3) while keeping its initial year."
+                    if is_preprint_anomaly
+                    else None
+                )
+
+                target_paper_node = f"node_{cited_pid}"
+                first_occ = occurrences[0]
+                base_label = f"Cites ({len(occurrences)})" if len(occurrences) > 1 else "Cites"
+                edge_label = f"{base_label} ⚠" if is_preprint_anomaly else base_label
+
+                g.add_edge(
+                    paper_node_id,
+                    target_paper_node,
+                    type="CITES",
+                    label=edge_label,
+                    weight=2.0,
+                    metadata={
+                        "citing_paper_id": paper.id,
+                        "citing_paper_title": paper.title,
+                        "citing_year": paper.year,
+                        "cited_paper_id": cited_paper.id,
+                        "cited_paper_title": cited_paper.title,
+                        "cited_year": cited_paper.year,
+                        "citation_count": len(occurrences),
+                        "is_preprint_anomaly": is_preprint_anomaly,
+                        "anomaly_note": anomaly_note,
+                        "citations": occurrences,
+                    },
+                )
+                g.nodes[paper_node_id]["metadata"]["paper_relations"].append(
+                    {
+                        "paper_id": paper.id,
+                        "target_paper_id": cited_paper.id,
+                        "paper_title": cited_paper.title,
+                        "year": cited_paper.year,
+                        "role": f"Cites ({len(occurrences)}x)" + (" · Preprint/Revision" if is_preprint_anomaly else ""),
+                        "is_preprint_anomaly": is_preprint_anomaly,
+                        "anomaly_note": anomaly_note,
+                        "explanation": first_occ["snippet"],
+                        "page": first_occ["page"],
+                        "bbox": first_occ["bbox"],
+                        "section": first_occ["section"],
+                        "citations": occurrences,
+                    }
+                )
+                g.nodes[target_paper_node]["metadata"]["paper_relations"].append(
+                    {
+                        "paper_id": paper.id,
+                        "target_paper_id": cited_paper.id,
+                        "paper_title": paper.title,
+                        "year": paper.year,
+                        "role": f"Cited By ({len(occurrences)}x)" + (" · Preprint/Revision" if is_preprint_anomaly else ""),
+                        "is_preprint_anomaly": is_preprint_anomaly,
+                        "anomaly_note": anomaly_note,
+                        "explanation": first_occ["snippet"],
+                        "page": first_occ["page"],
+                        "bbox": first_occ["bbox"],
+                        "section": first_occ["section"],
+                        "citations": occurrences,
+                    }
+                )
 
         self.graph = g
         return g
@@ -391,6 +478,7 @@ class KnowledgeGraphBuilder:
                         weight=float(eattrs.get("weight", 1.0)),
                         is_active=is_edge_active,
                         is_dimmed=is_edge_dimmed,
+                        metadata=eattrs.get("metadata", {}),
                     )
                 )
             )

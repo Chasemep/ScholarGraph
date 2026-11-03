@@ -53,6 +53,10 @@ class CytoscapeEdgeData(BaseModel):
         default=False,
         description="True when edge is non-relevant during an active query (20% opacity)",
     )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Optional edge metadata including all in-text citation occurrences and bboxes",
+    )
 
 
 class CytoscapeEdge(BaseModel):
