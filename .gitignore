@@ -219,6 +219,20 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Documents
+# Academic documents & course submissions
+docs/academic/
 Documents/
 documents/
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+Thumbs.db
+
+# Local Database & Vector Store runtime files (keep folder structure)
+data/chromadb/*
+!data/chromadb/.gitkeep
+data/sqlite/*
+!data/sqlite/.gitkeep

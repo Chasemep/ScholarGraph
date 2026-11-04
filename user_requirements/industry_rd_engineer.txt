@@ -1,0 +1,19 @@
+USER STORY: INDUSTRY R&D ENGINEER / ML PRACTITIONER
+User Category: Industry
+Role: Senior Machine Learning Engineer at an Enterprise HealthTech Lab
+
+Workflow Context:
+The engineer is tasked with selecting, benchmarking, and optimizing open-source LLM architectures for on-premise clinical documentation extraction. The current sprint goal is to deliver a technical recommendation report comparing 4 state-of-the-art transformer compression and quantization techniques to cut inference cost and latency on company GPUs without degrading extraction accuracy.
+
+Current Reality & Pain Points:
+1. High-Stakes Production Decisions Under Sprint Deadlines:
+"We have a two-week sprint to decide whether to migrate our inference cluster from FP16 to INT4 / AWQ / SmoothQuant. My VP of Engineering wants hard numbers: What is the exact latency reduction on an NVIDIA A10G? What is the perplexity degradation on specialized domains? What is the VRAM footprint at batch size 8? I pulled six recent ArXiv preprints and conference proceedings claiming state-of-the-art compression, but finding the actual operational numbers is an exhausting manual slog."
+
+2. Contradictory Benchmark Tables & Hidden Asterisks:
+"Every single paper presents their benchmark tables completely differently, making fair comparison infuriating. Paper 1 reports throughput in tokens/second on an 8x H100 rig with FlashAttention-2 enabled. Paper 2 reports speedup as a relative ratio against an unoptimized baseline on a single V100 GPU without disclosing the prompt length. Paper 3 buries critical evaluation hyperparameters in Appendix E.3, revealing they evaluated on a cherry-picked subset of 500 samples rather than the full benchmark. I have to spend entire days manually parsing disparate tables, converting units, cross-referencing hardware specifications, and hunting for hidden asterisks."
+
+3. Total Distrust of AI Chatbots for Architectural Choices:
+"General AI chat tools are useless for this kind of rigorous technical decision-making. If I ask an AI chatbot 'What was the exact throughput in tokens/second reported for AWQ on Llama-2-70B on 4x A100 GPUs?', it will either give me a generic hand-waving explanation, mix up numbers from the 7B and 70B model tables, or hallucinate a plausible-sounding number that doesn't match the paper. If I present hallucinated benchmark figures in an architectural review meeting and our team spends $60,000 provisioning cloud instances that fail to meet SLAs, that falls on my head. I need deterministic proof: show me the exact table row and bounding box from the paper."
+
+4. Keyword Search Failures & Missing Artifact Links:
+"Keyword search doesn't help because searching 'latency' in Adobe Acrobat hits 140 occurrences across the document, most of which are generic mentions in the related work section rather than empirical measurement tables. Furthermore, half the papers claim 'code is available at github.com/anon/repo', but the link is a dead 404, or the paper omitted crucial training scripts and evaluation licenses. Digging through footnotes to verify if code or datasets are actually usable in a commercial setting takes forever."

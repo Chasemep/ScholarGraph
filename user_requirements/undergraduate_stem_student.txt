@@ -1,0 +1,19 @@
+USER STORY: STEM & UNDERGRADUATE STUDENT
+User Category: Education
+Role: Junior Computer Science & Data Science Major
+
+Workflow Context:
+The student is enrolled in CS 471 (Introduction to Deep Learning and Natural Language Processing). For a midterm seminar project, the professor assigned a classic seminal paper—"Attention Is All You Need" (Vaswani et al.)—and two recent papers that build upon it. The student must deliver a 15-minute presentation explaining the architectural innovations and mathematical foundations to classmates.
+
+Current Reality & Pain Points:
+1. Cognitive Overload from Dense Academic Jargon:
+"Opening these papers for the first time is terrifying. The authors jump straight into multi-head attention equations, matrix dimensions, scaled dot-products, and positional encodings without explaining the intuition. Within the first two pages, I encounter five unfamiliar acronyms and mathematical symbols that aren't defined anywhere in the text. I spend half my study time switching between 12 different Google searches, Wikipedia pages, and Reddit threads trying to figure out what 'softmax temperature scaling' actually does."
+
+2. The Citation Rabbit Hole & Missing Mental Map:
+"The citation rabbit hole is completely overwhelming. In Section 3.2, the paper says: 'Following [14] and [22], we apply layer normalization...'. I have no idea what paper [14] is or why layer normalization was needed in the first place. When I open [14], it references another set of papers from five years earlier. I get completely lost in a labyrinth of tabs. I have no visual roadmap or mental model of how these concepts connect. I can't tell what is a brand-new invention created by the authors versus what is just standard boilerplate that everyone in the field already knows."
+
+3. Vulnerability to AI Hallucinations & Distorted Concepts:
+"When I get stuck on an equation, I often paste it into ChatGPT and ask: 'Explain Equation 3 in simple terms.' The explanation sounds super clear and confident, but when I took my notes to office hours, my TA pointed out that the AI had completely reversed the row and column dimensions of the Query and Key matrices, and hallucinated an explanation for the square root factor sqrt(d_k) that was mathematically wrong. Because I'm still learning, I couldn't spot the hallucination on my own. It made me feel stupid and destroyed my confidence."
+
+4. Disjointed PDF Reading Experience:
+"Trying to read these PDFs on a laptop screen is a terrible experience. Figure 1 (the Transformer architecture diagram) is on page 3, but the text explaining the multi-head attention block is on page 4, and the formula is in Section 3.2 on page 5. I'm constantly scrolling up and down, losing my place, and trying to remember which arrow in the diagram corresponds to which line of math. I wish I could see the concept map and the text side-by-side without getting lost."

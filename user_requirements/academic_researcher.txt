@@ -1,0 +1,19 @@
+USER STORY: ACADEMIC RESEARCHER / GRADUATE STUDENT
+User Category: Academia
+Role: 2nd-Year Ph.D. Student in Computer Science (Focus: NLP & Information Retrieval)
+
+Workflow Context:
+The researcher is currently preparing a doctoral thesis proposal on parameter-efficient fine-tuning (PEFT) and adapting large language models for domain-specific biomedical reasoning. They have accumulated a library of 48 PDF papers published across NeurIPS, ICML, ICLR, ACL, and ArXiv over the past three years.
+
+Current Reality & Pain Points:
+1. Literature Review Paralysis & Document Silos:
+"I've been staring at 35 open browser tabs and a massive Zotero library for three weeks straight, and I feel completely overwhelmed. My advisor expects a 10-page Related Work chapter that doesn't just list papers chronologically, but deeply contrasts how each method handles memory overhead versus downstream benchmark performance. To write one single coherent paragraph comparing LoRA, QLoRA, Prefix Tuning, and Adapter layers, I have to open four 20-page PDFs side-by-side. I find myself hunting for Section 4.2 in one paper, Appendix C in another, and Table 2 in a third. PDFs are completely flat, isolated silos—there is no way to query across them simultaneously."
+
+2. Citation Tracking & Attribution Nightmares:
+"The worst part is citation tracking and provenance loss. Two weeks ago, I scribbled a note in my Notion doc: 'Method X showed catastrophic forgetting when rank r > 32 on domain-specific medical corpora.' Now I'm finalizing my draft and I need the exact citation and page number. I spent three hours yesterday searching through 15 PDFs trying to find which paper said that, only to realize I might have conflated findings from two different papers. In academic research, if you attribute a finding to the wrong authors or misquote a baseline, your paper gets shredded during peer review."
+
+3. The Hallucination Danger of Commercial AI:
+"I tried using commercial AI assistants like ChatGPT and Claude to speed up the literature review, and it was a complete disaster. When I asked ChatGPT: 'Summarize the differences in weight initialization between LoRA and AdaLoRA and cite the page numbers', it sounded brilliantly persuasive. But when I checked the citations, the page numbers were completely made up, and it cited a paper by an author that doesn't even exist! In academic research, hallucinated citations are a career-ending trap. I can't trust an AI tool unless I can immediately click through and see the actual sentence in the published PDF with my own eyes."
+
+4. Inability to Track Methodological Lineage:
+"Tracking research lineage is another nightmare. Paper A cites Paper B, which in turn modifies a loss function from Paper C back in 2018. Google Scholar just gives you a flat list of 2,000 search results sorted by raw citation count. It tells you nothing about how these papers are conceptually connected—who evaluated on what dataset, which lab introduced the benchmark, and which subsequent paper debunked the original results. I'm drowning in flat text files and isolated PDFs."
