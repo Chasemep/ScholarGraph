@@ -219,7 +219,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Documents
+# Academic documents & course submissions
+docs/academic/
 Documents/
 documents/
 
