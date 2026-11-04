@@ -151,8 +151,7 @@ jobs:
 
       - name: Run Playwright Multi-Paper E2E Test Suite
         env:
-          USERPROFILE: "/tmp"
-          HOME: "/tmp"
+          VIDEO_DIR: "/tmp/Documents/ScholarGraph_E2E_Videos"
           FRONTEND_URL: "http://localhost:3000"
           BACKEND_URL: "http://localhost:8000"
         run: |

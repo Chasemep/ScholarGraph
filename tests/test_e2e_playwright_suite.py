@@ -11,7 +11,8 @@ from playwright.sync_api import sync_playwright, expect
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
-VIDEO_DIR = Path(os.environ.get("USERPROFILE", "C:/Users/Chase")) / "Documents" / "ScholarGraph_E2E_Videos"
+_custom_video_dir = os.environ.get("VIDEO_DIR")
+VIDEO_DIR = Path(_custom_video_dir) if _custom_video_dir else Path(os.environ.get("USERPROFILE", "C:/Users/Chase")) / "Documents" / "ScholarGraph_E2E_Videos"
 REAL_PAPERS_DIR = Path(__file__).resolve().parent / "test_data" / "real_papers"
 
 
