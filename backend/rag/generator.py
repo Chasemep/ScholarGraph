@@ -26,13 +26,18 @@ def _has_query_overlap(query: str, ranked_candidates: List[Dict[str, Any]]) -> b
     if not query_tokens:
         return False
 
+    min_overlap = 2 if len(query_tokens) >= 3 else 1
+
     for cand in ranked_candidates[:3]:
         chunk: TextChunk = cand["chunk"]
         chunk_tokens = set(
             tokenize_scientific_text(f"{chunk.paper_title or ''} {chunk.section} {chunk.text}")
         )
         overlap = query_tokens.intersection(chunk_tokens)
-        if len(overlap) >= 1 and cand.get("relevance_score", 0.0) >= settings.min_relevance_threshold:
+        score = float(cand.get("relevance_score", 0.0))
+        if len(overlap) >= min_overlap and score >= settings.min_relevance_threshold:
+            return True
+        if len(overlap) >= 1 and score >= (settings.min_relevance_threshold + 0.15):
             return True
 
     top_score = float(ranked_candidates[0].get("relevance_score", 0.0))
@@ -87,6 +92,8 @@ def extractive_fallback_synthesis(
             scored_sents.append((overlap_count, s))
 
         scored_sents.sort(key=lambda x: x[0], reverse=True)
+        if not scored_sents or scored_sents[0][0] == 0:
+            continue
         best_sent = scored_sents[0][1].rstrip(".")
         norm_key = best_sent.lower()
         if norm_key in seen_sentences:

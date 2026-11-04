@@ -177,8 +177,12 @@ class HybridReranker:
             if has_lexical_hit:
                 # Hybrid calibration combining Cross-Encoder, normalized BM25, and dense cosine similarity
                 combined = 0.55 * norm_ce + 0.25 * norm_bm25 + 0.20 * vec_sim
+                # When cross-encoder and dense vector both indicate poor semantic match,
+                # discount lexical hits from spurious word overlaps (e.g. single generic word matches)
+                if norm_ce < 0.08 and vec_sim < 0.25:
+                    combined = min(combined, norm_ce * 2.0 + vec_sim * 0.5)
                 # Floor when both BM25 and dense vector agree strongly on a broad domain term
-                if norm_bm25 >= 0.40 and vec_sim >= 0.30:
+                elif norm_bm25 >= 0.40 and vec_sim >= 0.30:
                     combined = max(combined, 0.45 + 0.35 * norm_bm25)
             else:
                 combined = 0.70 * norm_ce + 0.30 * max(0.0, vec_sim - 0.20)
