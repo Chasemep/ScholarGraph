@@ -6,7 +6,8 @@ services:
     container_name: scholargraph-backend
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - HOST=0.0.0.0
       - PORT=8000
