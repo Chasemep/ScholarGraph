@@ -157,7 +157,7 @@ jobs:
           BACKEND_URL: "http://localhost:8000"
         run: |
           mkdir -p /tmp/Documents/ScholarGraph_E2E_Videos
-          pytest tests/test_e2e_playwright_suite.py -v -s
+          pytest tests/test_e2e_playwright_suite.py -v -s -o "addopts="
 
       - name: Upload E2E Test Video Artifacts
         if: always()

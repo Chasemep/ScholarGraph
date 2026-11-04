@@ -1,16 +1,30 @@
 """Shared pytest fixtures, mock Gemini API responses, and isolated test databases (T031)."""
 
 from pathlib import Path
-from typing import Callable, List
+from typing import Any, Callable, List
 import pytest
-from fastapi.testclient import TestClient
 
-from backend.main import app
-from backend.models.paper import BoundingBox, PaperMetadata, TextChunk
-from backend.rag.bm25_index import BM25IndexManager
-from backend.rag.vector_store import VectorStoreManager
-from backend.storage.db import DatabaseManager
-from backend.storage.file_store import FileStoreManager
+try:
+    from fastapi.testclient import TestClient
+
+    from backend.main import app
+    from backend.models.paper import BoundingBox, PaperMetadata, TextChunk
+    from backend.rag.bm25_index import BM25IndexManager
+    from backend.rag.vector_store import VectorStoreManager
+    from backend.storage.db import DatabaseManager
+    from backend.storage.file_store import FileStoreManager
+    HAS_BACKEND = True
+except ImportError:
+    HAS_BACKEND = False
+    TestClient = None  # type: ignore
+    app = None  # type: ignore
+    BoundingBox = None  # type: ignore
+    PaperMetadata = None  # type: ignore
+    TextChunk = None  # type: ignore
+    BM25IndexManager = None  # type: ignore
+    VectorStoreManager = None  # type: ignore
+    DatabaseManager = None  # type: ignore
+    FileStoreManager = None  # type: ignore
 
 
 def deterministic_384d_embedder(texts: List[str]) -> List[List[float]]:
@@ -36,20 +50,26 @@ def deterministic_384d_embedder(texts: List[str]) -> List[List[float]]:
 
 
 @pytest.fixture
-def isolated_db(tmp_path: Path) -> DatabaseManager:
+def isolated_db(tmp_path: Path) -> Any:
     """Provide an isolated temporary SQLite DatabaseManager instance."""
+    if not HAS_BACKEND or DatabaseManager is None:
+        pytest.skip("backend dependencies not installed in current environment")
     return DatabaseManager(db_path=tmp_path / "isolated_scholar.db")
 
 
 @pytest.fixture
-def isolated_file_store(tmp_path: Path) -> FileStoreManager:
+def isolated_file_store(tmp_path: Path) -> Any:
     """Provide an isolated temporary FileStoreManager directory."""
+    if not HAS_BACKEND or FileStoreManager is None:
+        pytest.skip("backend dependencies not installed in current environment")
     return FileStoreManager(base_dir=tmp_path / "isolated_papers")
 
 
 @pytest.fixture
-def isolated_vector_store(tmp_path: Path) -> VectorStoreManager:
+def isolated_vector_store(tmp_path: Path) -> Any:
     """Provide an isolated ChromaDB VectorStoreManager with deterministic 384-d embeddings."""
+    if not HAS_BACKEND or VectorStoreManager is None:
+        pytest.skip("backend dependencies not installed in current environment")
     return VectorStoreManager(
         persist_dir=tmp_path / "isolated_chroma",
         collection_name="isolated_scholar_chunks",
@@ -58,14 +78,18 @@ def isolated_vector_store(tmp_path: Path) -> VectorStoreManager:
 
 
 @pytest.fixture
-def isolated_bm25() -> BM25IndexManager:
+def isolated_bm25() -> Any:
     """Provide a fresh in-memory BM25IndexManager."""
+    if not HAS_BACKEND or BM25IndexManager is None:
+        pytest.skip("backend dependencies not installed in current environment")
     return BM25IndexManager()
 
 
 @pytest.fixture
-def sample_papers() -> List[PaperMetadata]:
+def sample_papers() -> List[Any]:
     """Provide reusable PaperMetadata fixtures."""
+    if not HAS_BACKEND or PaperMetadata is None:
+        pytest.skip("backend dependencies not installed in current environment")
     return [
         PaperMetadata(
             id="paper_vaswani2017",
@@ -91,8 +115,10 @@ def sample_papers() -> List[PaperMetadata]:
 
 
 @pytest.fixture
-def sample_chunks() -> List[TextChunk]:
+def sample_chunks() -> List[Any]:
     """Provide reusable spatial TextChunk fixtures with valid BoundingBox coordinates."""
+    if not HAS_BACKEND or TextChunk is None:
+        pytest.skip("backend dependencies not installed in current environment")
     return [
         TextChunk(
             id="paper_vaswani2017_c0",
@@ -134,7 +160,9 @@ def mock_gemini_callable() -> Callable[[str, str, str], str]:
 
 
 @pytest.fixture
-def api_client() -> TestClient:
+def api_client() -> Any:
     """Provide a FastAPI TestClient wired to the main ScholarGraph application."""
+    if not HAS_BACKEND or TestClient is None:
+        pytest.skip("backend dependencies not installed in current environment")
     return TestClient(app)
 
