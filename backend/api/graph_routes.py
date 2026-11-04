@@ -26,6 +26,11 @@ def _rebuild_graph_from_db(paper_ids: Optional[List[str]] = None) -> List[TextCh
     all_chunks = db.get_all_chunks(paper_ids=paper_ids)
     sig = (tuple(sorted(p.id for p in papers)), len(all_chunks))
 
+    if not papers or not all_chunks:
+        graph_builder.graph.clear()
+        _last_graph_signature = sig
+        return []
+
     if _last_graph_signature != sig or graph_builder.graph.number_of_nodes() == 0:
         chunks_by_paper: Dict[str, List[TextChunk]] = {}
         for ch in all_chunks:
