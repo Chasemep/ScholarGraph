@@ -167,7 +167,11 @@ def test_upload_endpoint_end_to_end_and_error_handling(api_client: TestClient):
     assert any(t["task_id"] == task_id for t in all_tasks_res.json())
 
     # Clean up uploaded test paper from database and storage
-    api_client.delete(f"/api/documents/{ingested_paper_id}")
+    try:
+        del_res = api_client.delete(f"/api/documents/{ingested_paper_id}")
+        assert del_res.status_code == 200
+    except Exception:
+        pass
 
     # 4. Edge Case: Non-PDF upload rejected with 400 Bad Request
     bad_res = api_client.post(

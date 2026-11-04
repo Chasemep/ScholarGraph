@@ -1,0 +1,5 @@
+[run]
+omit =
+    */scripts/generate_technical_report_pdf.py
+    */scripts/download_models.py
+

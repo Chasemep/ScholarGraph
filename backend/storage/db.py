@@ -53,10 +53,15 @@ class DatabaseManager:
 
     @contextmanager
     def get_connection(self) -> Generator[sqlite3.Connection, None, None]:
-        """Yield a SQLite connection with foreign keys enabled and Row factory set."""
-        conn = sqlite3.connect(str(self.db_path))
+        """Yield a SQLite connection with foreign keys enabled, WAL mode, and Row factory set."""
+        conn = sqlite3.connect(str(self.db_path), timeout=60.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA busy_timeout = 60000;")
+        try:
+            conn.execute("PRAGMA journal_mode = WAL;")
+        except Exception:
+            pass
         try:
             yield conn
             conn.commit()

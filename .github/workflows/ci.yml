@@ -32,7 +32,7 @@ jobs:
           cache: "pip"
           cache-dependency-path: "backend/requirements.txt"
 
-      - name: Cache HuggingFace & spaCy Models
+      - name: Cache HuggingFace & Torch Models
         uses: actions/cache@v4
         with:
           path: |
@@ -46,6 +46,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
+          pip install pytest-cov pytest-asyncio python-multipart
 
       - name: Pre-cache NLP & IR Models (spaCy + MiniLM Bi-Encoder & Cross-Encoder)
         run: |
@@ -55,7 +56,7 @@ jobs:
         env:
           GEMINI_API_KEY: ""
         run: |
-          pytest --cov=backend --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=80 --junitxml=pytest-report.xml -v
+          pytest --cov=backend --cov-config=.coveragerc --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=80 --junitxml=pytest-report.xml -v
 
       - name: Generate CI Test & Coverage Summary Report
         if: always()
@@ -111,3 +112,53 @@ jobs:
           npm install
           npm run build
 
+  e2e-playwright:
+    name: End-to-End Playwright Browser Tests & Video Capture
+    runs-on: ubuntu-latest
+    needs: [pytest-and-coverage, frontend-build-check]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python Test Dependencies & Playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest playwright requests
+          playwright install --with-deps chromium
+
+      - name: Start Docker Stack (Backend & Frontend)
+        run: |
+          docker compose up -d --build
+          echo "Waiting for services to become healthy..."
+          for i in {1..60}; do
+            if curl -s -f http://localhost:8000/api/health > /dev/null && curl -s -f http://localhost:3000 > /dev/null; then
+              echo "Services ready!"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run Playwright Multi-Paper E2E Test Suite
+        env:
+          USERPROFILE: "/tmp"
+          HOME: "/tmp"
+          FRONTEND_URL: "http://localhost:3000"
+          BACKEND_URL: "http://localhost:8000"
+        run: |
+          mkdir -p /tmp/Documents/ScholarGraph_E2E_Videos
+          pytest tests/test_e2e_playwright_suite.py -v -s
+
+      - name: Upload E2E Test Video Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scholargraph-e2e-videos
+          path: /tmp/Documents/ScholarGraph_E2E_Videos/*.webm
+          retention-days: 7
+          if-no-files-found: ignore

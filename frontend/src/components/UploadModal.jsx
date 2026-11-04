@@ -65,13 +65,13 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }) {
     let activeTasks = [...initialTasks]
     let attempts = 0
 
-    while (attempts < 60) {
+    while (attempts < 300) {
       const allDone = activeTasks.every(
         (t) => t.status === 'ready' || t.status === 'failed'
       )
       if (allDone) break
 
-      await new Promise((r) => setTimeout(r, 700))
+      await new Promise((r) => setTimeout(r, 1000))
       attempts += 1
 
       const updated = await Promise.all(

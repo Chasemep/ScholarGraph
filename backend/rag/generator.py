@@ -9,6 +9,8 @@ from backend.models.paper import TextChunk
 from backend.models.rag import CitationToken
 from backend.rag.bm25_index import tokenize_scientific_text
 
+REFUSAL_MESSAGE = "The ingested literature does not contain sufficient evidence to answer this query."
+
 def generate_clarifying_refusal(
     query: str,
     history: Optional[List[Any]] = None,
@@ -254,9 +256,9 @@ class GroundedGenerator:
             return self._llm_callable(SYSTEM_GROUNDING_PROMPT, prompt, api_key), settings.gemini_model
 
         candidate_models = [
+            "gemini-flash-lite-latest",
             settings.gemini_model,
             "gemini-3-flash-preview",
-            "gemini-flash-lite-latest",
         ]
         seen: set[str] = set()
         models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
@@ -278,7 +280,7 @@ class GroundedGenerator:
         }
 
         last_err: Optional[Exception] = None
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             for model_name in models_to_try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
                 try:
@@ -386,7 +388,7 @@ class GroundedGenerator:
                     "symbols. No introduction, no comparison table, no prose summary unless the user asked for it. "
                     "Cite [paper_id, Page X] for every equation:"
                 )
-            elif comparative or len(by_paper) > 1:
+            elif comparative and len(by_paper) > 1:
                 instruction = (
                     "Compare the papers above: describe each paper's model/approach (include its key equations, "
                     "reconstructed in LaTeX), then explicitly list the differences (and similarities) you can infer "
@@ -428,12 +430,15 @@ class GroundedGenerator:
                     or "couldn't find relevant information" in llm_lower
                 )
                 if is_refusal:
-                    clarification = generate_clarifying_refusal(query, history=history, ranked_candidates=valid_candidates)
-                    clarification["model_used"] = used_model_name
-                    # If Gemini provided a helpful partial explanation alongside the refusal, prepend it
-                    if len(llm_text.strip()) > 100:
-                        clarification["answer"] = f"{llm_text.strip()}\n\n---\n**Suggested follow-ups / clarifications:**\n" + "\n".join(f"• *{s}*" for s in clarification["suggested_followups"])
-                    return clarification
+                    top_score = float(valid_candidates[0].get("relevance_score", 0.0)) if valid_candidates else 0.0
+                    if top_score < (settings.min_relevance_threshold + 0.25):
+                        clarification = generate_clarifying_refusal(query, history=history, ranked_candidates=valid_candidates)
+                        clarification["model_used"] = used_model_name
+                        # If Gemini provided a helpful partial explanation alongside the refusal, prepend it
+                        if len(llm_text.strip()) > 100:
+                            clarification["answer"] = f"{llm_text.strip()}\n\n---\n**Suggested follow-ups / clarifications:**\n" + "\n".join(f"• *{s}*" for s in clarification["suggested_followups"])
+                        return clarification
+                    # Strong evidence present in valid candidates; proceed to extractive synthesis fallback
                 valid_paper_ids = {c.paper_id for c in citations}
                 has_valid_citation = any(pid in llm_text for pid in valid_paper_ids)
                 if llm_text and has_valid_citation:

@@ -280,8 +280,20 @@ BOILERPLATE_REGEX = re.compile(
 MATH_SIGNAL_REGEX = re.compile(r"(=|\bdt\b|d[xv]\b|∑|Σ|α|β|τ|ξ|η|γ|δ|∥|≤|≥|→|\(\d{1,2}\))")
 
 
+SINGLE_PAPER_BASELINE_REGEX = re.compile(
+    r"\b(?:compared\s+to\s+(?:full\s+fine-?tuning|baseline|ground\s+truth|standard|prior\s+work|conventional|standard\s+training))\b",
+    re.IGNORECASE,
+)
+
+
 def _is_comparative_query(query: str) -> bool:
-    return bool(COMPARATIVE_QUERY_REGEX.search(query or ""))
+    if not query:
+        return False
+    if SINGLE_PAPER_BASELINE_REGEX.search(query) and not re.search(
+        r"\b(?:papers|models|approaches|methods|variants|versions|between|across|all\s+\w+)\b", query, re.I
+    ):
+        return False
+    return bool(COMPARATIVE_QUERY_REGEX.search(query))
 
 
 def _is_formula_query(query: str) -> bool:

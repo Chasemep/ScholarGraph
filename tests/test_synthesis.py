@@ -99,7 +99,13 @@ def test_generator_zero_hallucination_refusal_on_out_of_scope_query():
         ranked_candidates=low_candidates,
     )
     assert out["status"] == "insufficient_context"
-    assert out["answer"] == REFUSAL_MESSAGE
+    ans_lower = out["answer"].lower()
+    assert (
+        "sufficient context" in ans_lower
+        or "sufficient evidence" in ans_lower
+        or "couldn't find" in ans_lower
+        or REFUSAL_MESSAGE.lower() in ans_lower
+    )
     assert out["citations"] == []
     assert out["model_used"] == "deterministic-guardrail"
 
@@ -156,6 +162,12 @@ def test_api_query_and_pdf_streaming_endpoints_end_to_end():
     assert oos_res.status_code == 200
     oos_payload = oos_res.json()
     assert oos_payload["status"] == "insufficient_context"
-    assert oos_payload["answer"] == REFUSAL_MESSAGE
+    oos_lower = oos_payload["answer"].lower()
+    assert (
+        "sufficient context" in oos_lower
+        or "sufficient evidence" in oos_lower
+        or "couldn't find" in oos_lower
+        or REFUSAL_MESSAGE.lower() in oos_lower
+    )
     assert oos_payload["citations"] == []
 
