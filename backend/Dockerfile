@@ -51,7 +51,7 @@ RUN mkdir -p /app/data/papers /app/data/chromadb /app/data/sqlite
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
-CMD ["sh", "-c", "python -m backend.scripts.seed_database && uvicorn backend.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python -m backend.scripts.seed_database & uvicorn backend.main:app --host 0.0.0.0 --port 8000"]
