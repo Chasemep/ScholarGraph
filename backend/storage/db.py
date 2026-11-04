@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS paper_chunks (
 
 CREATE INDEX IF NOT EXISTS idx_chunks_paper_id ON paper_chunks(paper_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_page ON paper_chunks(paper_id, page_number);
+
+CREATE TABLE IF NOT EXISTS system_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -87,6 +92,27 @@ class DatabaseManager:
                 return {"papers", "paper_chunks"}.issubset(tables)
         except Exception:
             return False
+
+    def get_system_flag(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Retrieve a system configuration or initialization flag."""
+        try:
+            with self.get_connection() as conn:
+                row = conn.execute("SELECT value FROM system_metadata WHERE key = ?;", (key,)).fetchone()
+                return str(row["value"]) if row else default
+        except Exception:
+            return default
+
+    def set_system_flag(self, key: str, value: str) -> None:
+        """Upsert a system configuration or initialization flag."""
+        try:
+            with self.get_connection() as conn:
+                conn.execute(
+                    "INSERT INTO system_metadata (key, value) VALUES (?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
+                    (key, value),
+                )
+        except Exception:
+            pass
 
     def upsert_paper(self, paper: PaperMetadata) -> PaperMetadata:
         """Insert or update a paper metadata record."""

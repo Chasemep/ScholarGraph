@@ -48,6 +48,7 @@ def process_pdf_ingestion_task(task_id: str, filename: str, content: bytes) -> N
 
         # Synchronize lexical BM25 index
         bm25_index.build_index(db.get_all_chunks())
+        db.set_system_flag("initial_seeding_done", "true")
 
         INGESTION_TASKS[task_id] = IngestionStatus(
             task_id=task_id,

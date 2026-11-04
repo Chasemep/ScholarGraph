@@ -149,8 +149,16 @@ def extract_seed_chunks_from_pdf(paper_spec: dict, pdf_path: Path) -> tuple[List
 
 def ensure_corpus_indexed(force_reingest: bool = False) -> None:
     """Ensure SQLite, ChromaDB, and in-memory BM25 index are populated and synchronized."""
+    is_seeded = db.get_system_flag("initial_seeding_done") == "true"
     existing_papers = db.list_papers()
-    if force_reingest or not existing_papers:
+
+    # If the database already contains papers, mark initial seeding done so user deletions persist
+    if existing_papers and not is_seeded:
+        db.set_system_flag("initial_seeding_done", "true")
+        is_seeded = True
+
+    # Only run automatic seed ingestion on the very first boot when no papers exist AND initial seeding was never done
+    if force_reingest or (not is_seeded and not existing_papers):
         seed_paths = ensure_seed_pdfs(force_arxiv_download=False)
         path_by_name = {p.name: p for p in seed_paths}
         all_new_chunks: List[TextChunk] = []
@@ -190,6 +198,7 @@ def ensure_corpus_indexed(force_reingest: bool = False) -> None:
                 vector_store.index_chunks(all_new_chunks[i : i + batch_size])
 
         bm25_index.build_index(db.get_all_chunks())
+        db.set_system_flag("initial_seeding_done", "true")
         return
 
     all_db_chunks = db.get_all_chunks()
@@ -238,6 +247,7 @@ def delete_document(paper_id: str) -> dict:
     db.delete_paper(paper_id)
     vector_store.delete_paper_chunks(paper_id)
     bm25_index.build_index(db.get_all_chunks())
+    db.set_system_flag("initial_seeding_done", "true")
     return {"deleted": True, "paper_id": paper_id}
 
 
@@ -508,6 +518,33 @@ def _gather_per_paper_evidence(
 def query_literature(request: QueryRequest) -> QueryResponse:
     """Execute Hybrid BM25 + ChromaDB retrieval, RRF fusion, Cross-Encoder re-ranking, and grounded synthesis."""
     ensure_corpus_indexed()
+
+    existing_papers = db.list_papers()
+    if not existing_papers:
+        return QueryResponse(
+            query=request.query,
+            answer="There are currently no documents in the corpus. Please upload PDF papers using the Document Management drawer to begin literature exploration.",
+            status="insufficient_context",
+            citations=[],
+            suggested_followups=["Upload PDF research papers using the Document Management drawer."],
+            model_used="deterministic-guardrail",
+            retrieval_latency_ms=0.0,
+            synthesis_latency_ms=0.0,
+        )
+
+    if request.paper_ids:
+        existing_ids = {p.id for p in existing_papers}
+        if not any(pid in existing_ids for pid in request.paper_ids):
+            return QueryResponse(
+                query=request.query,
+                answer="None of the specified filter papers were found in the current corpus.",
+                status="insufficient_context",
+                citations=[],
+                suggested_followups=[],
+                model_used="deterministic-guardrail",
+                retrieval_latency_ms=0.0,
+                synthesis_latency_ms=0.0,
+            )
 
     t0 = time.perf_counter()
     history = request.history[-8:] if request.history else []
